@@ -1,0 +1,22 @@
+# Build artifacts
+/target
+/dist
+
+# Data directories
+/work
+/data
+
+# OS files
+.DS_Store
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# Environment
+.env
+.env.local
+
+# Logs
+*.log

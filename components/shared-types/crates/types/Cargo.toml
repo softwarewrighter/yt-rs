@@ -1,0 +1,10 @@
+[package]
+name = "yt-types"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+description = "Core types for yt-rs (Position, Size)"
+
+[dependencies]
+serde = { workspace = true, features = ["derive"] }

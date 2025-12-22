@@ -1,0 +1,23 @@
+[package]
+name = "yt-rs-frontend"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+description = "Yew/WASM frontend for yt-rs node editor"
+
+[dependencies]
+yt-rs-shared = { path = "../shared" }
+
+yew.workspace = true
+gloo.workspace = true
+gloo-net.workspace = true
+web-sys.workspace = true
+wasm-bindgen.workspace = true
+
+serde.workspace = true
+serde_json.workspace = true
+uuid = { workspace = true, features = ["js"] }
+chrono = { workspace = true, features = ["wasmbind"] }
+log = "0.4"
+wasm-logger = "0.2"
