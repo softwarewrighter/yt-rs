@@ -115,6 +115,8 @@ impl AppState {
             NodeData::VideoInput(_) => Node::new_video_input(pos),
             NodeData::StillSampler(_) => Node::new_still_sampler(pos),
             NodeData::Viewer(_) => Node::new_viewer(pos),
+            NodeData::Selector(_) => Node::new_selector(pos),
+            NodeData::StillPreview(_) => Node::new_still_preview(pos),
         };
         self.nodes.insert(node.id, node);
     }

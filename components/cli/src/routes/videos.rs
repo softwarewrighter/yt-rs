@@ -34,6 +34,7 @@ pub fn routes() -> Router<AppState> {
         .route("/videos/upload", post(upload_video))
         .route("/videos/:id/stream", get(stream_video))
         .route("/videos/:id/thumbnail", get(get_thumbnail))
+        .route("/stills/:video_id/:timestamp", get(get_still_thumbnail))
 }
 
 async fn upload_video(
@@ -145,6 +146,34 @@ async fn get_thumbnail(
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
     let file = File::open(&thumbnail_path)
+        .await
+        .map_err(|_| StatusCode::NOT_FOUND)?;
+
+    let metadata = file
+        .metadata()
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    let stream = ReaderStream::new(file);
+    let body = Body::from_stream(stream);
+
+    Ok(Response::builder()
+        .status(StatusCode::OK)
+        .header(header::CONTENT_TYPE, "image/jpeg")
+        .header(header::CONTENT_LENGTH, metadata.len())
+        .body(body)
+        .unwrap())
+}
+
+async fn get_still_thumbnail(
+    State(state): State<AppState>,
+    AxumPath((video_id, timestamp)): AxumPath<(Uuid, f64)>,
+) -> Result<Response, StatusCode> {
+    let still_path = state
+        .get_or_create_still_thumbnail(video_id, timestamp)
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    let file = File::open(&still_path)
         .await
         .map_err(|_| StatusCode::NOT_FOUND)?;
 

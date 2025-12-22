@@ -3,7 +3,7 @@
 use yew::prelude::*;
 
 use crate::state::{AppAction, AppStateContext};
-use yt_rs_shared::{Connection, Position};
+use yt_rs_shared::{Connection, ConnectorPosition, Position};
 
 pub(super) fn render_connections(state: &AppStateContext) -> Html {
     html! {
@@ -41,13 +41,39 @@ fn get_connection_endpoints(conn: &Connection, state: &AppStateContext) -> (Posi
     let start = state
         .nodes
         .get(&conn.from_node)
-        .map(|n| Position::new(n.position.x + n.size.width, n.position.y + 60.0))
+        .map(|n| {
+            // Find the output connector's y offset
+            let y_offset = n
+                .outputs
+                .iter()
+                .find(|c| c.id == conn.from_connector)
+                .map(|c| match c.position {
+                    ConnectorPosition::Right(y) => y,
+                    ConnectorPosition::Left(y) => y,
+                })
+                .unwrap_or(60.0);
+            Position::new(n.position.x + n.size.width, n.position.y + y_offset)
+        })
         .unwrap_or_default();
+
     let end = state
         .nodes
         .get(&conn.to_node)
-        .map(|n| Position::new(n.position.x, n.position.y + 40.0))
+        .map(|n| {
+            // Find the input connector's y offset
+            let y_offset = n
+                .inputs
+                .iter()
+                .find(|c| c.id == conn.to_connector)
+                .map(|c| match c.position {
+                    ConnectorPosition::Left(y) => y,
+                    ConnectorPosition::Right(y) => y,
+                })
+                .unwrap_or(40.0);
+            Position::new(n.position.x, n.position.y + y_offset)
+        })
         .unwrap_or_default();
+
     (start, end)
 }
 

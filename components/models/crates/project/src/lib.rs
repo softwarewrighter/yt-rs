@@ -1,13 +1,15 @@
 //! Project serialization for yt-rs.
 
+mod graph;
+
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 pub use yt_rs_nodes::{
     BezierControlPoints, CanvasState, Connection, Connector, ConnectorPosition, ConnectorType,
-    Node, NodeData, PendingConnection, Position, ProcessingStatus, Size, Still, StillSamplerData,
-    UploadStatus, VideoInputData, ViewerData, Viewport,
+    Node, NodeData, PendingConnection, Position, ProcessingStatus, SelectorData, Size, Still,
+    StillPreviewData, StillSamplerData, UploadStatus, VideoInputData, ViewerData, Viewport,
 };
 
 /// A project containing the full canvas state.

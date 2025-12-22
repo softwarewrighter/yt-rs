@@ -358,6 +358,19 @@ pub struct ViewerData {
     pub thumbnail_timestamp: f64,
 }
 
+/// Data specific to a Selector node.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
+pub struct SelectorData {
+    /// The index of the selected still (0-based, default 0).
+    pub selected_index: usize,
+}
+
+/// Data specific to a StillPreview node.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
+pub struct StillPreviewData {
+    // Marker type - resolves data from connection at render time
+}
+
 /// The type-specific data for a node.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "type")]
@@ -365,6 +378,8 @@ pub enum NodeData {
     VideoInput(VideoInputData),
     StillSampler(StillSamplerData),
     Viewer(ViewerData),
+    Selector(SelectorData),
+    StillPreview(StillPreviewData),
 }
 
 impl NodeData {
@@ -374,6 +389,8 @@ impl NodeData {
             NodeData::VideoInput(_) => "Video Input",
             NodeData::StillSampler(_) => "Still Sampler",
             NodeData::Viewer(_) => "Viewer",
+            NodeData::Selector(_) => "Selector",
+            NodeData::StillPreview(_) => "Still Preview",
         }
     }
 }
@@ -429,6 +446,35 @@ impl Node {
             size: Size::new(200.0, 140.0),
             data: NodeData::Viewer(ViewerData::default()),
             inputs: vec![Connector::input("video_in", 70.0)],
+            outputs: Vec::new(),
+            z_index: 0,
+        }
+    }
+
+    /// Creates a new Selector node at the given position.
+    pub fn new_selector(position: Position) -> Self {
+        Self {
+            id: Uuid::new_v4(),
+            position,
+            size: Size::new(180.0, 100.0),
+            data: NodeData::Selector(SelectorData::default()),
+            inputs: vec![Connector::input("stills_in", 50.0)],
+            outputs: vec![
+                Connector::output("selected_out", 30.0),
+                Connector::output("array_out", 70.0),
+            ],
+            z_index: 0,
+        }
+    }
+
+    /// Creates a new StillPreview node at the given position.
+    pub fn new_still_preview(position: Position) -> Self {
+        Self {
+            id: Uuid::new_v4(),
+            position,
+            size: Size::new(200.0, 160.0),
+            data: NodeData::StillPreview(StillPreviewData::default()),
+            inputs: vec![Connector::input("still_in", 80.0)],
             outputs: Vec::new(),
             z_index: 0,
         }

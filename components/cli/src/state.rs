@@ -172,6 +172,38 @@ impl AppState {
 
         Ok(thumbnail_path)
     }
+
+    /// Gets or creates a still thumbnail at a specific timestamp.
+    pub async fn get_or_create_still_thumbnail(
+        &self,
+        video_id: Uuid,
+        timestamp: f64,
+    ) -> std::io::Result<PathBuf> {
+        let stills_dir = self.inner.data_dir.join("work/stills");
+        tokio::fs::create_dir_all(&stills_dir).await?;
+
+        // Create filename based on video_id and timestamp
+        let filename = format!("{}-{:.2}.jpg", video_id, timestamp);
+        let still_path = stills_dir.join(&filename);
+
+        // Return existing still if it exists
+        if tokio::fs::try_exists(&still_path).await.unwrap_or(false) {
+            return Ok(still_path);
+        }
+
+        // Find the video file
+        let video_path = self
+            .get_video_path(video_id)
+            .await
+            .ok_or_else(|| std::io::Error::new(std::io::ErrorKind::NotFound, "Video not found"))?;
+
+        // Extract frame at the specified timestamp
+        yt_rs_ffmpeg::extract_thumbnail(&video_path, &still_path, timestamp, 320)
+            .await
+            .map_err(|e| std::io::Error::other(e.to_string()))?;
+
+        Ok(still_path)
+    }
 }
 
 #[cfg(test)]
