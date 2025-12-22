@@ -46,13 +46,13 @@ yt-rs is a web-based node editor for video processing workflows. The system cons
 └─────────────────────────────────────────────────────────────────┘
 ```
 
-## Crate Structure
+## Project Structure
 
 ```
 yt-rs/
-├── Cargo.toml              # Workspace root
-├── crates/
+├── components/             # Self-contained Rust components
 │   ├── shared/             # Shared types (frontend + backend)
+│   │   ├── Cargo.toml      # Standalone package
 │   │   └── src/
 │   │       ├── lib.rs
 │   │       └── models/
@@ -61,34 +61,33 @@ yt-rs/
 │   │           ├── canvas.rs
 │   │           └── project.rs
 │   │
-│   ├── backend/            # Axum REST server
+│   ├── cli/                # Axum REST server CLI
+│   │   ├── Cargo.toml      # Standalone package
 │   │   └── src/
 │   │       ├── main.rs     # CLI entry point
-│   │       ├── config.rs
 │   │       ├── state.rs
-│   │       ├── routes/
-│   │       ├── handlers/
-│   │       ├── services/
-│   │       └── error.rs
+│   │       └── routes/
 │   │
 │   └── frontend/           # Yew WASM application
-│       ├── index.html      # Trunk entry
-│       ├── styles/
+│       ├── Cargo.toml      # Standalone package
+│       ├── Trunk.toml
+│       ├── index.html
+│       ├── styles.css
 │       └── src/
 │           ├── main.rs
 │           ├── app.rs
-│           ├── components/
-│           │   ├── canvas/
-│           │   ├── nodes/
-│           │   ├── connections/
-│           │   └── toolbox/
-│           ├── hooks/
-│           ├── state/
-│           ├── services/
-│           └── utils/
+│           ├── state.rs
+│           └── components/
 │
+├── scripts/                # Build scripts
+│   ├── build-all.sh        # Build all components
+│   ├── check-all.sh        # Run clippy on all
+│   ├── format-all.sh       # Format all
+│   └── run.sh              # Run CLI server
+│
+├── work/                   # Per-project binary files (gitignored)
 ├── docs/                   # Documentation
-└── assets/                 # Static assets
+└── README.md
 ```
 
 ## Data Flow

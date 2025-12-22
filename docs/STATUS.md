@@ -17,6 +17,14 @@ Phase 7: Polish            [░░░░░░░░░░░░░░░░░�
 
 ## Recent Updates
 
+### 2024-12-22 - Project Structure Refactor
+- Removed Cargo workspace in favor of standalone components
+- Restructured: crates/ → components/ (shared, cli, frontend)
+- Each component is self-contained with its own Cargo.toml
+- Added scripts/ directory (build-all.sh, check-all.sh, format-all.sh, run.sh)
+- Added work/ directory for per-project binary files (gitignored)
+- 38 tests passing across all components
+
 ### 2024-12-22 - MVP Demo Complete
 - Drag and drop node repositioning
 - Arrow key movement (1px, Shift+Arrow for 10px)
@@ -34,7 +42,7 @@ Phase 7: Polish            [░░░░░░░░░░░░░░░░░�
 - Pending connection preview while drawing
 
 ### 2024-12-22 - Foundation
-- Cargo workspace with 3 crates (shared, backend, frontend)
+- 3 standalone components (shared, cli, frontend)
 - Shared data models (Node, Connection, Canvas, Project)
 - Axum REST server with CLI args
 - Yew WASM frontend with Trunk build
@@ -71,12 +79,18 @@ Summary: 6 passed, 1 failed, 17 warnings
 ## Architecture
 
 ```
-crates/
+components/
 ├── shared/      # Shared types (Node, Connection, Canvas)
-├── backend/     # Axum REST server
+├── cli/         # Axum REST server (CLI)
 │   └── routes/  # API endpoints (health, projects, videos)
 └── frontend/    # Yew WASM app
     └── components/  # UI components (canvas, toolbox, dialog, nodes)
+
+scripts/
+├── build-all.sh    # Build all components
+├── check-all.sh    # Run clippy on all
+├── format-all.sh   # Format all
+└── run.sh          # Run CLI server
 ```
 
 ## Links

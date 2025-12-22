@@ -1,10 +1,13 @@
 # Build artifacts
-/target
-/dist
+**/target/
+**/dist/
+**/Cargo.lock
+
+# Work directory (per-project binary files)
+/work/
 
 # Data directories
-/work
-/data
+/data/
 
 # OS files
 .DS_Store
