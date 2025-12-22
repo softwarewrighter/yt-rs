@@ -9,3 +9,4 @@ pub use error::FfmpegError;
 pub use video::duration::get_duration;
 pub use video::frames::{extract_frame, extract_frames_at_interval};
 pub use video::metadata::{VideoMetadata, get_video_metadata};
+pub use video::thumbnail::{extract_thumbnail, thumbnail_path};

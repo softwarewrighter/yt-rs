@@ -7,7 +7,7 @@ use uuid::Uuid;
 pub use yt_rs_nodes::{
     BezierControlPoints, CanvasState, Connection, Connector, ConnectorPosition, ConnectorType,
     Node, NodeData, PendingConnection, Position, ProcessingStatus, Size, Still, StillSamplerData,
-    UploadStatus, VideoInputData, Viewport,
+    UploadStatus, VideoInputData, ViewerData, Viewport,
 };
 
 /// A project containing the full canvas state.

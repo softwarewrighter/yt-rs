@@ -9,7 +9,7 @@ use web_sys::{FormData, HtmlInputElement};
 use yew::prelude::*;
 
 use crate::state::{AppAction, AppStateContext};
-use yt_rs_shared::{Node, NodeData, UploadStatus, VideoInputData};
+use yt_rs_shared::{Node, NodeData, UploadStatus, VideoInputData, ViewerData};
 
 /// Video metadata response from backend.
 #[derive(Debug, Clone, Deserialize)]
@@ -45,6 +45,7 @@ fn render_dialog_content(node: &Node, state: &AppStateContext) -> Html {
     match &node.data {
         NodeData::VideoInput(data) => render_video_input_dialog(node, data, state),
         NodeData::StillSampler(data) => render_still_sampler_dialog(node, data, state),
+        NodeData::Viewer(data) => render_viewer_dialog(node, data, state),
     }
 }
 
@@ -224,4 +225,56 @@ fn find_connected_video(node: &Node, state: &AppStateContext) -> Option<VideoInp
         NodeData::VideoInput(data) => Some(data.clone()),
         _ => None,
     }
+}
+
+fn render_viewer_dialog(node: &Node, _data: &ViewerData, state: &AppStateContext) -> Html {
+    let connected_video = find_connected_video(node, state);
+
+    match connected_video {
+        Some(video) if video.file_id.is_some() => {
+            let file_id = video.file_id.unwrap();
+            let video_name = video.file_name.unwrap_or_else(|| "Unknown".to_string());
+            let duration = video
+                .duration_seconds
+                .map(format_duration)
+                .unwrap_or_else(|| "Unknown".to_string());
+            let stream_url = format!("/api/v1/videos/{}/stream", file_id);
+
+            html! {
+                <div class="dialog-body viewer-dialog">
+                    <h3>{"Viewer"}</h3>
+                    <div class="dialog-row">
+                        <label>{"Video:"}</label>
+                        <span>{video_name}</span>
+                    </div>
+                    <div class="dialog-row">
+                        <label>{"Duration:"}</label>
+                        <span>{duration}</span>
+                    </div>
+                    <div class="video-player">
+                        <video controls=true width="100%">
+                            <source src={stream_url} type="video/mp4" />
+                            {"Your browser does not support video playback."}
+                        </video>
+                    </div>
+                </div>
+            }
+        }
+        _ => {
+            html! {
+                <div class="dialog-body">
+                    <h3>{"Viewer"}</h3>
+                    <div class="dialog-row hint">
+                        {"Connect a video input to view video"}
+                    </div>
+                </div>
+            }
+        }
+    }
+}
+
+fn format_duration(seconds: f64) -> String {
+    let mins = (seconds / 60.0).floor() as u32;
+    let secs = (seconds % 60.0).floor() as u32;
+    format!("{}:{:02}", mins, secs)
 }

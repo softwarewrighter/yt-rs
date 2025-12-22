@@ -1,0 +1,3 @@
+- We need a way for the CLI to send a stop signal to the running server (so Claude can stop/restart the CLI with two commands: the new one in ./scripts/stop-server.sh)
+
+- We need a way to save (and name) the current project, create a new (empty) project, and load a previously saved project

@@ -4,11 +4,16 @@ use std::path::Path;
 
 use axum::{
     Json, Router,
-    extract::{Multipart, State},
-    http::StatusCode,
-    routing::post,
+    body::Body,
+    extract::{Multipart, Path as AxumPath, State},
+    http::{HeaderMap, StatusCode, header},
+    response::Response,
+    routing::{get, post},
 };
 use serde::{Deserialize, Serialize};
+use tokio::fs::File;
+use tokio::io::{AsyncReadExt, AsyncSeekExt};
+use tokio_util::io::ReaderStream;
 use uuid::Uuid;
 
 use crate::state::AppState;
@@ -25,7 +30,10 @@ pub struct VideoMeta {
 
 /// Creates video routes.
 pub fn routes() -> Router<AppState> {
-    Router::new().route("/videos/upload", post(upload_video))
+    Router::new()
+        .route("/videos/upload", post(upload_video))
+        .route("/videos/:id/stream", get(stream_video))
+        .route("/videos/:id/thumbnail", get(get_thumbnail))
 }
 
 async fn upload_video(
@@ -61,4 +69,115 @@ async fn upload_video(
         size_bytes: data.len() as u64,
         duration_seconds,
     }))
+}
+
+async fn stream_video(
+    State(state): State<AppState>,
+    AxumPath(id): AxumPath<Uuid>,
+    headers: HeaderMap,
+) -> Result<Response, StatusCode> {
+    let video_path = state
+        .get_video_path(id)
+        .await
+        .ok_or(StatusCode::NOT_FOUND)?;
+
+    let file = File::open(&video_path)
+        .await
+        .map_err(|_| StatusCode::NOT_FOUND)?;
+
+    let metadata = file
+        .metadata()
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    let file_size = metadata.len();
+
+    // Parse Range header for partial content support
+    let range = headers
+        .get(header::RANGE)
+        .and_then(|v| v.to_str().ok())
+        .and_then(|s| parse_range(s, file_size));
+
+    match range {
+        Some((start, end)) => {
+            let length = end - start + 1;
+            let mut file = file;
+            file.seek(std::io::SeekFrom::Start(start))
+                .await
+                .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+            let stream = ReaderStream::new(file.take(length));
+            let body = Body::from_stream(stream);
+
+            Ok(Response::builder()
+                .status(StatusCode::PARTIAL_CONTENT)
+                .header(header::CONTENT_TYPE, "video/mp4")
+                .header(header::CONTENT_LENGTH, length)
+                .header(header::ACCEPT_RANGES, "bytes")
+                .header(
+                    header::CONTENT_RANGE,
+                    format!("bytes {}-{}/{}", start, end, file_size),
+                )
+                .body(body)
+                .unwrap())
+        }
+        None => {
+            let stream = ReaderStream::new(file);
+            let body = Body::from_stream(stream);
+
+            Ok(Response::builder()
+                .status(StatusCode::OK)
+                .header(header::CONTENT_TYPE, "video/mp4")
+                .header(header::CONTENT_LENGTH, file_size)
+                .header(header::ACCEPT_RANGES, "bytes")
+                .body(body)
+                .unwrap())
+        }
+    }
+}
+
+async fn get_thumbnail(
+    State(state): State<AppState>,
+    AxumPath(id): AxumPath<Uuid>,
+) -> Result<Response, StatusCode> {
+    let thumbnail_path = state
+        .get_or_create_thumbnail(id)
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    let file = File::open(&thumbnail_path)
+        .await
+        .map_err(|_| StatusCode::NOT_FOUND)?;
+
+    let metadata = file
+        .metadata()
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    let stream = ReaderStream::new(file);
+    let body = Body::from_stream(stream);
+
+    Ok(Response::builder()
+        .status(StatusCode::OK)
+        .header(header::CONTENT_TYPE, "image/jpeg")
+        .header(header::CONTENT_LENGTH, metadata.len())
+        .body(body)
+        .unwrap())
+}
+
+/// Parses HTTP Range header value like "bytes=0-1023".
+fn parse_range(range_header: &str, file_size: u64) -> Option<(u64, u64)> {
+    let range_spec = range_header.strip_prefix("bytes=")?;
+    let mut parts = range_spec.split('-');
+
+    let start: u64 = parts.next()?.parse().ok()?;
+    let end: u64 = parts
+        .next()
+        .and_then(|s| if s.is_empty() { None } else { Some(s) })
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(file_size - 1);
+
+    if start <= end && end < file_size {
+        Some((start, end))
+    } else {
+        None
+    }
 }

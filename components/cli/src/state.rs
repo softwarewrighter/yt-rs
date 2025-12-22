@@ -69,6 +69,109 @@ impl AppState {
         let mut projects = self.inner.projects.write().await;
         projects.remove(&id)
     }
+
+    /// Returns the path for a video file if it exists.
+    pub async fn get_video_path(&self, id: Uuid) -> Option<PathBuf> {
+        let work_dir = self.inner.data_dir.join("work/videos");
+
+        // Check for common extensions
+        for ext in ["mp4", "mov", "avi", "webm", "mkv"] {
+            let path = work_dir.join(format!("{}.{}", id, ext));
+            if tokio::fs::try_exists(&path).await.unwrap_or(false) {
+                return Some(path);
+            }
+        }
+
+        None
+    }
+
+    /// Saves a project to disk as JSON.
+    pub async fn save_project_to_disk(&self, project: &Project) -> std::io::Result<()> {
+        let projects_dir = self.inner.data_dir.join("projects");
+        tokio::fs::create_dir_all(&projects_dir).await?;
+
+        let path = projects_dir.join(format!("{}.json", project.id));
+        let json = serde_json::to_string_pretty(project)
+            .map_err(|e| std::io::Error::other(e.to_string()))?;
+
+        tokio::fs::write(&path, json).await
+    }
+
+    /// Loads a project from disk by ID.
+    pub async fn load_project_from_disk(&self, id: Uuid) -> std::io::Result<Option<Project>> {
+        let path = self.inner.data_dir.join(format!("projects/{}.json", id));
+
+        if !tokio::fs::try_exists(&path).await.unwrap_or(false) {
+            return Ok(None);
+        }
+
+        let json = tokio::fs::read_to_string(&path).await?;
+        let project: Project =
+            serde_json::from_str(&json).map_err(|e| std::io::Error::other(e.to_string()))?;
+
+        Ok(Some(project))
+    }
+
+    /// Lists all projects from disk.
+    pub async fn list_projects_from_disk(&self) -> std::io::Result<Vec<Project>> {
+        let projects_dir = self.inner.data_dir.join("projects");
+
+        if !tokio::fs::try_exists(&projects_dir).await.unwrap_or(false) {
+            return Ok(Vec::new());
+        }
+
+        let mut projects = Vec::new();
+        let mut entries = tokio::fs::read_dir(&projects_dir).await?;
+
+        while let Some(entry) = entries.next_entry().await? {
+            let path = entry.path();
+            if path.extension().is_some_and(|ext| ext == "json")
+                && let Ok(json) = tokio::fs::read_to_string(&path).await
+                && let Ok(project) = serde_json::from_str::<Project>(&json)
+            {
+                projects.push(project);
+            }
+        }
+
+        Ok(projects)
+    }
+
+    /// Deletes a project from disk.
+    pub async fn delete_project_from_disk(&self, id: Uuid) -> std::io::Result<()> {
+        let path = self.inner.data_dir.join(format!("projects/{}.json", id));
+
+        if tokio::fs::try_exists(&path).await.unwrap_or(false) {
+            tokio::fs::remove_file(&path).await?;
+        }
+
+        Ok(())
+    }
+
+    /// Gets or creates a thumbnail for a video.
+    pub async fn get_or_create_thumbnail(&self, video_id: Uuid) -> std::io::Result<PathBuf> {
+        let thumbnail_path = yt_rs_ffmpeg::thumbnail_path(&self.inner.data_dir, video_id);
+
+        // Return existing thumbnail if it exists
+        if tokio::fs::try_exists(&thumbnail_path)
+            .await
+            .unwrap_or(false)
+        {
+            return Ok(thumbnail_path);
+        }
+
+        // Find the video file
+        let video_path = self
+            .get_video_path(video_id)
+            .await
+            .ok_or_else(|| std::io::Error::new(std::io::ErrorKind::NotFound, "Video not found"))?;
+
+        // Extract thumbnail at 0 seconds
+        yt_rs_ffmpeg::extract_thumbnail(&video_path, &thumbnail_path, 0.0, 320)
+            .await
+            .map_err(|e| std::io::Error::other(e.to_string()))?;
+
+        Ok(thumbnail_path)
+    }
 }
 
 #[cfg(test)]

@@ -6,6 +6,10 @@ authors = ["Mike <mike@softwarewrighter.com>"]
 license = "MIT"
 description = "CLI server for yt-rs node editor"
 
+[lib]
+name = "yt_rs_cli"
+path = "src/lib.rs"
+
 [[bin]]
 name = "yt-rs"
 path = "src/main.rs"
@@ -16,6 +20,7 @@ yt-rs-ffmpeg = { path = "../utilities/crates/ffmpeg" }
 
 axum = { version = "0.7", features = ["multipart", "macros"] }
 tokio = { version = "1.0", features = ["full"] }
+tokio-util = { version = "0.7", features = ["io"] }
 tower = "0.4"
 tower-http = { version = "0.5", features = ["fs", "cors", "trace"] }
 clap = { version = "4.0", features = ["derive"] }
@@ -28,6 +33,9 @@ uuid = { version = "1.0", features = ["v4", "serde"] }
 chrono = { version = "0.4", features = ["serde"] }
 thiserror = "1.0"
 anyhow = "1.0"
+
+[dev-dependencies]
+tempfile = "3.0"
 
 [build-dependencies]
 hostname = "0.4"

@@ -349,12 +349,22 @@ impl StillSamplerData {
     }
 }
 
+/// Data specific to a Viewer node.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
+pub struct ViewerData {
+    /// Path to the generated thumbnail (relative to data dir).
+    pub thumbnail_path: Option<String>,
+    /// Timestamp in seconds where the thumbnail was extracted.
+    pub thumbnail_timestamp: f64,
+}
+
 /// The type-specific data for a node.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "type")]
 pub enum NodeData {
     VideoInput(VideoInputData),
     StillSampler(StillSamplerData),
+    Viewer(ViewerData),
 }
 
 impl NodeData {
@@ -363,6 +373,7 @@ impl NodeData {
         match self {
             NodeData::VideoInput(_) => "Video Input",
             NodeData::StillSampler(_) => "Still Sampler",
+            NodeData::Viewer(_) => "Viewer",
         }
     }
 }
@@ -406,6 +417,19 @@ impl Node {
             data: NodeData::StillSampler(StillSamplerData::default()),
             inputs: vec![Connector::input("video_in", 40.0)],
             outputs: vec![Connector::output("stills_out", 100.0)],
+            z_index: 0,
+        }
+    }
+
+    /// Creates a new Viewer node at the given position.
+    pub fn new_viewer(position: Position) -> Self {
+        Self {
+            id: Uuid::new_v4(),
+            position,
+            size: Size::new(200.0, 140.0),
+            data: NodeData::Viewer(ViewerData::default()),
+            inputs: vec![Connector::input("video_in", 70.0)],
+            outputs: Vec::new(),
             z_index: 0,
         }
     }

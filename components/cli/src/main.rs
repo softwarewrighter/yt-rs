@@ -15,11 +15,8 @@ use tower_http::cors::{Any, CorsLayer};
 use tower_http::services::ServeDir;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
-mod routes;
-mod state;
-
-use routes::create_router;
-use state::AppState;
+use yt_rs_cli::routes::create_router;
+use yt_rs_cli::state::AppState;
 
 const AI_AGENT_INSTRUCTIONS: &str = r#"
 AI CODING AGENT INSTRUCTIONS

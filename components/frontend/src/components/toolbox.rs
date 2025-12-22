@@ -3,7 +3,7 @@
 use yew::prelude::*;
 
 use crate::state::{AppAction, AppStateContext};
-use yt_rs_shared::{NodeData, Position, StillSamplerData, VideoInputData};
+use yt_rs_shared::{NodeData, Position, StillSamplerData, VideoInputData, ViewerData};
 
 /// The toolbox sidebar component.
 #[function_component(Toolbox)]
@@ -37,6 +37,7 @@ fn render_palette(state: &AppStateContext) -> Html {
         <div class="toolbox-content">
             {render_node_item("V", "Video Input", "Load a video file", create_video_callback(state))}
             {render_node_item("S", "Still Sampler", "Extract frames", create_sampler_callback(state))}
+            {render_node_item("P", "Viewer", "Play video", create_viewer_callback(state))}
         </div>
     }
 }
@@ -70,6 +71,16 @@ fn create_sampler_callback(state: &AppStateContext) -> Callback<MouseEvent> {
         state.dispatch(AppAction::CreateNode(
             NodeData::StillSampler(StillSamplerData::default()),
             Position::new(400.0, 100.0),
+        ));
+    })
+}
+
+fn create_viewer_callback(state: &AppStateContext) -> Callback<MouseEvent> {
+    let state = state.clone();
+    Callback::from(move |_| {
+        state.dispatch(AppAction::CreateNode(
+            NodeData::Viewer(ViewerData::default()),
+            Position::new(700.0, 100.0),
         ));
     })
 }

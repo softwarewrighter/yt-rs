@@ -3,7 +3,7 @@
 use yew::prelude::*;
 
 use crate::state::{AppAction, AppStateContext};
-use yt_rs_shared::{Node, NodeData, Position};
+use yt_rs_shared::{Node, NodeData, Position, VideoInputData};
 
 /// Renders a single node with its connectors as SVG.
 pub fn render_node(node: &Node, state: &AppStateContext) -> Html {
@@ -26,7 +26,7 @@ pub fn render_node(node: &Node, state: &AppStateContext) -> Html {
         state_dbl.dispatch(AppAction::OpenDialog(node_id));
     });
 
-    let node_details = render_node_details(&node.data);
+    let node_details = render_node_details(node, state);
 
     html! {
         <g class="node" transform={format!("translate({}, {})", node_pos.x, node_pos.y)}>
@@ -48,8 +48,8 @@ pub fn render_node(node: &Node, state: &AppStateContext) -> Html {
     }
 }
 
-fn render_node_details(data: &NodeData) -> Html {
-    match data {
+fn render_node_details(node: &Node, state: &AppStateContext) -> Html {
+    match &node.data {
         NodeData::VideoInput(video) => {
             if let Some(ref name) = video.file_name {
                 let duration = video
@@ -75,6 +75,42 @@ fn render_node_details(data: &NodeData) -> Html {
                 </text>
             }
         }
+        NodeData::Viewer(_) => {
+            if let Some(video) = find_connected_video(node, state) {
+                let name = video.file_name.unwrap_or_else(|| "Unknown".to_string());
+                let duration = video
+                    .duration_seconds
+                    .map(|d| format!("{:.1}s", d))
+                    .unwrap_or_default();
+                html! {
+                    <>
+                        <text x="10" y="44" fill="#aaa" font-size="10" style="pointer-events: none;">{name}</text>
+                        if !duration.is_empty() {
+                            <text x="10" y="58" fill="#888" font-size="10" style="pointer-events: none;">{duration}</text>
+                        }
+                    </>
+                }
+            } else {
+                html! {
+                    <text x="10" y="44" fill="#666" font-size="10" style="pointer-events: none;">
+                        {"No video connected"}
+                    </text>
+                }
+            }
+        }
+    }
+}
+
+fn find_connected_video(node: &Node, state: &AppStateContext) -> Option<VideoInputData> {
+    let input_conn = node.inputs.first()?;
+    let connection = state
+        .connections
+        .values()
+        .find(|c| c.to_node == node.id && c.to_connector == input_conn.id)?;
+    let source_node = state.nodes.get(&connection.from_node)?;
+    match &source_node.data {
+        NodeData::VideoInput(data) => Some(data.clone()),
+        _ => None,
     }
 }
 

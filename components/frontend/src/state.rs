@@ -114,6 +114,7 @@ impl AppState {
         let node = match data {
             NodeData::VideoInput(_) => Node::new_video_input(pos),
             NodeData::StillSampler(_) => Node::new_still_sampler(pos),
+            NodeData::Viewer(_) => Node::new_viewer(pos),
         };
         self.nodes.insert(node.id, node);
     }
