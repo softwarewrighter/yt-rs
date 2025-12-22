@@ -34,6 +34,7 @@ pub enum AppAction {
     SetZoom(f64),
     CreateNode(NodeData, Position),
     MoveNode(Uuid, Position),
+    UpdateNodeData(Uuid, NodeData),
     DeleteNode(Uuid),
     SelectNode(Option<Uuid>),
     StartDrag(Uuid, Position),
@@ -69,6 +70,11 @@ impl AppState {
             MoveNode(id, pos) => {
                 if let Some(n) = self.nodes.get_mut(&id) {
                     n.position = pos;
+                }
+            }
+            UpdateNodeData(id, data) => {
+                if let Some(n) = self.nodes.get_mut(&id) {
+                    n.data = data;
                 }
             }
             DeleteNode(id) => self.delete_node(id),

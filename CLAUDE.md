@@ -2,49 +2,59 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## CRITICAL RULES (READ FIRST)
+
+These rules are NON-NEGOTIABLE. Violating them wastes time and increases tech debt:
+
+1. **NEVER disable lint/clippy checks** - No `#[allow(...)]`, no `// noqa`, no suppressions
+2. **NEVER add dead code** - If code is unused, do not add it. Add it when needed.
+3. **FIX warnings properly** - Remove unused code, fix the actual issue
+4. **Pre-commit = format + fix clippy + verify .gitignore + update docs**
+
+When I say "do NOT disable checks" I mean it literally. Fix the root cause.
+
 ## Project Overview
 
-yt-rs is a web-based node editor for video processing workflows. It uses a Cargo workspace architecture with three crates:
-- **crates/shared**: Data models shared between frontend and backend
-- **crates/backend**: Axum REST server with CLI, serves static WASM files
-- **crates/frontend**: Yew/WASM application (all UI logic in Rust, no JavaScript)
+yt-rs is a web-based node editor for video processing workflows.
+
+**Structure:**
+```
+components/
+├── models/          # Graph data models (nested workspace)
+│   └── crates/
+│       ├── nodes/   # Node, Connection, Canvas types
+│       └── project/ # Project serialization
+├── shared/          # Re-exports from models
+├── cli/             # Axum REST server
+└── frontend/        # Yew/WASM app
+
+scripts/
+├── build-all.sh
+├── check-all.sh
+├── format-all.sh
+└── run.sh
+```
 
 ## Build Commands
 
 ```bash
-# Build all crates
-cargo build
+# Build all components
+./scripts/build-all.sh
 
-# Build release
-cargo build --release
+# Check all with clippy
+./scripts/check-all.sh
 
-# Run tests
-cargo test
+# Format all
+./scripts/format-all.sh
 
-# Run specific test
-cargo test test_name
+# Run CLI server
+./scripts/run.sh
 
-# Linting (zero warnings required)
-cargo clippy --all-targets --all-features -- -D warnings
+# Build individual component
+cd components/<name> && cargo build
 
-# Format code
-cargo fmt --all
-
-# Generate docs
-cargo doc --open
-```
-
-## Frontend Development (Yew/WASM)
-
-```bash
-# Install trunk (WASM bundler)
-cargo install trunk
-
-# Build frontend (from crates/frontend/)
-trunk build
-
-# Development server with hot reload
-trunk serve
+# Run tests per component
+cd components/<name> && cargo test
 ```
 
 ## Pre-Commit Quality Process (Mandatory)

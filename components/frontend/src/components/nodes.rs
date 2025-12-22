@@ -3,7 +3,7 @@
 use yew::prelude::*;
 
 use crate::state::{AppAction, AppStateContext};
-use yt_rs_shared::{Node, Position};
+use yt_rs_shared::{Node, NodeData, Position};
 
 /// Renders a single node with its connectors as SVG.
 pub fn render_node(node: &Node, state: &AppStateContext) -> Html {
@@ -26,6 +26,8 @@ pub fn render_node(node: &Node, state: &AppStateContext) -> Html {
         state_dbl.dispatch(AppAction::OpenDialog(node_id));
     });
 
+    let node_details = render_node_details(&node.data);
+
     html! {
         <g class="node" transform={format!("translate({}, {})", node_pos.x, node_pos.y)}>
             <rect
@@ -40,8 +42,39 @@ pub fn render_node(node: &Node, state: &AppStateContext) -> Html {
                 style="cursor: move;"
             />
             <text x="10" y="24" fill="#fff" font-size="12" style="pointer-events: none;">{node.data.type_name()}</text>
+            {node_details}
             {render_connectors(node, state)}
         </g>
+    }
+}
+
+fn render_node_details(data: &NodeData) -> Html {
+    match data {
+        NodeData::VideoInput(video) => {
+            if let Some(ref name) = video.file_name {
+                let duration = video
+                    .duration_seconds
+                    .map(|d| format!("{:.1}s", d))
+                    .unwrap_or_default();
+                html! {
+                    <>
+                        <text x="10" y="44" fill="#aaa" font-size="10" style="pointer-events: none;">{name}</text>
+                        if !duration.is_empty() {
+                            <text x="10" y="58" fill="#888" font-size="10" style="pointer-events: none;">{duration}</text>
+                        }
+                    </>
+                }
+            } else {
+                html! {}
+            }
+        }
+        NodeData::StillSampler(sampler) => {
+            html! {
+                <text x="10" y="44" fill="#aaa" font-size="10" style="pointer-events: none;">
+                    {format!("{}s interval", sampler.interval_seconds)}
+                </text>
+            }
+        }
     }
 }
 

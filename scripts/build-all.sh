@@ -7,7 +7,15 @@ COMPONENTS_DIR="$ROOT_DIR/components"
 
 echo "Building all components..."
 
-# Build shared first (dependency for others)
+# Build models first (dependency for shared)
+echo "Building models..."
+(cd "$COMPONENTS_DIR/models" && cargo build)
+
+# Build utilities
+echo "Building utilities..."
+(cd "$COMPONENTS_DIR/utilities" && cargo build)
+
+# Build shared (depends on models)
 echo "Building shared..."
 (cd "$COMPONENTS_DIR/shared" && cargo build)
 

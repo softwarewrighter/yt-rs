@@ -7,7 +7,7 @@ COMPONENTS_DIR="$ROOT_DIR/components"
 
 echo "Formatting all components..."
 
-for component in shared cli frontend; do
+for component in models utilities shared cli frontend; do
     echo "Formatting $component..."
     (cd "$COMPONENTS_DIR/$component" && cargo fmt)
 done

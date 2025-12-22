@@ -15,7 +15,9 @@ fn main() {
     println!("cargo::rustc-env=BUILD_HOST={hostname}");
 
     // Build time (UTC)
-    let build_time = chrono::Utc::now().format("%Y-%m-%d %H:%M:%S UTC").to_string();
+    let build_time = chrono::Utc::now()
+        .format("%Y-%m-%d %H:%M:%S UTC")
+        .to_string();
     println!("cargo::rustc-env=BUILD_TIME={build_time}");
 
     // Git commit (short hash)

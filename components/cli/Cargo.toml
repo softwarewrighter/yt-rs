@@ -12,6 +12,7 @@ path = "src/main.rs"
 
 [dependencies]
 yt-rs-shared = { path = "../shared" }
+yt-rs-ffmpeg = { path = "../utilities/crates/ffmpeg" }
 
 axum = { version = "0.7", features = ["multipart", "macros"] }
 tokio = { version = "1.0", features = ["full"] }

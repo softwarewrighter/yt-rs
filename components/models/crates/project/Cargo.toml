@@ -1,0 +1,14 @@
+[package]
+name = "yt-rs-project"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+description = "Project serialization for yt-rs"
+
+[dependencies]
+yt-rs-nodes = { path = "../nodes" }
+serde.workspace = true
+serde_json.workspace = true
+uuid.workspace = true
+chrono.workspace = true

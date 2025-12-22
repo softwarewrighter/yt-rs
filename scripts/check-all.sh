@@ -7,7 +7,7 @@ COMPONENTS_DIR="$ROOT_DIR/components"
 
 echo "Running clippy on all components..."
 
-for component in shared cli frontend; do
+for component in models utilities shared cli frontend; do
     echo "Checking $component..."
     (cd "$COMPONENTS_DIR/$component" && cargo clippy -- -D warnings)
 done

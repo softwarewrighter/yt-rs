@@ -87,9 +87,14 @@ const fn version_string() -> &'static str {
         "Copyright (c) 2024 Software Wrighter\n",
         "License: MIT\n",
         "Repository: https://github.com/softwarewrighter/yt-rs\n",
-        "Build Host: ", env!("BUILD_HOST"), "\n",
-        "Build Commit: ", env!("BUILD_COMMIT"), "\n",
-        "Build Time: ", env!("BUILD_TIME")
+        "Build Host: ",
+        env!("BUILD_HOST"),
+        "\n",
+        "Build Commit: ",
+        env!("BUILD_COMMIT"),
+        "\n",
+        "Build Time: ",
+        env!("BUILD_TIME")
     )
 }
 

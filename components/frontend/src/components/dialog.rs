@@ -1,9 +1,24 @@
 //! Node dialog components.
 
+use gloo_net::http::Request;
+use serde::Deserialize;
+use uuid::Uuid;
+use wasm_bindgen::JsCast;
+use wasm_bindgen_futures::spawn_local;
+use web_sys::{FormData, HtmlInputElement};
 use yew::prelude::*;
 
 use crate::state::{AppAction, AppStateContext};
-use yt_rs_shared::{Node, NodeData};
+use yt_rs_shared::{Node, NodeData, UploadStatus, VideoInputData};
+
+/// Video metadata response from backend.
+#[derive(Debug, Clone, Deserialize)]
+struct VideoMeta {
+    id: Uuid,
+    name: String,
+    path: String,
+    duration_seconds: Option<f64>,
+}
 
 /// Renders the node dialog if one is open.
 pub fn render_dialog(state: &AppStateContext) -> Html {
@@ -33,11 +48,8 @@ fn render_dialog_content(node: &Node, state: &AppStateContext) -> Html {
     }
 }
 
-fn render_video_input_dialog(
-    _node: &Node,
-    data: &yt_rs_shared::VideoInputData,
-    _state: &AppStateContext,
-) -> Html {
+fn render_video_input_dialog(node: &Node, data: &VideoInputData, state: &AppStateContext) -> Html {
+    let node_id = node.id;
     let has_video = data.file_name.is_some();
     let video_name = data.file_name.clone().unwrap_or_else(|| "None".to_string());
     let duration = data
@@ -45,15 +57,67 @@ fn render_video_input_dialog(
         .map(|d| format!("{:.1}s", d))
         .unwrap_or_default();
 
-    let on_file_change = Callback::from(|e: Event| {
-        use wasm_bindgen::JsCast;
-        let input: web_sys::HtmlInputElement = e.target().unwrap().dyn_into().unwrap();
+    let is_uploading = matches!(data.upload_status, UploadStatus::Uploading { .. });
+
+    let state_upload = state.clone();
+    let on_file_change = Callback::from(move |e: Event| {
+        let input: HtmlInputElement = e.target().unwrap().dyn_into().unwrap();
         if let Some(files) = input.files()
             && let Some(file) = files.get(0)
         {
-            log::info!("Selected file: {}", file.name());
-            // TODO: Upload file to backend
+            let state = state_upload.clone();
+            let file_name = file.name();
+
+            // Set uploading status
+            state.dispatch(AppAction::UpdateNodeData(
+                node_id,
+                NodeData::VideoInput(VideoInputData {
+                    file_id: None,
+                    file_name: Some(file_name.clone()),
+                    file_path: None,
+                    duration_seconds: None,
+                    upload_status: UploadStatus::Uploading { progress: 0.0 },
+                }),
+            ));
+
+            spawn_local(async move {
+                match upload_video(file).await {
+                    Ok(meta) => {
+                        state.dispatch(AppAction::UpdateNodeData(
+                            node_id,
+                            NodeData::VideoInput(VideoInputData {
+                                file_id: Some(meta.id),
+                                file_name: Some(meta.name),
+                                file_path: Some(meta.path),
+                                duration_seconds: meta.duration_seconds,
+                                upload_status: UploadStatus::Complete,
+                            }),
+                        ));
+                    }
+                    Err(err) => {
+                        log::error!("Upload failed: {}", err);
+                        state.dispatch(AppAction::UpdateNodeData(
+                            node_id,
+                            NodeData::VideoInput(VideoInputData {
+                                file_id: None,
+                                file_name: None,
+                                file_path: None,
+                                duration_seconds: None,
+                                upload_status: UploadStatus::Error(err),
+                            }),
+                        ));
+                    }
+                }
+            });
         }
+    });
+
+    let state_delete = state.clone();
+    let on_delete = Callback::from(move |_| {
+        state_delete.dispatch(AppAction::UpdateNodeData(
+            node_id,
+            NodeData::VideoInput(VideoInputData::default()),
+        ));
     });
 
     html! {
@@ -69,15 +133,51 @@ fn render_video_input_dialog(
                     <span>{duration}</span>
                 </div>
             }
+            if is_uploading {
+                <div class="dialog-row">
+                    <span class="uploading">{"Uploading..."}</span>
+                </div>
+            }
             <div class="dialog-actions">
-                <button disabled={!has_video}>{"Delete Video"}</button>
+                <button onclick={on_delete} disabled={!has_video || is_uploading}>
+                    {"Delete Video"}
+                </button>
                 <label class="file-button">
-                    {"Load Video..."}
-                    <input type="file" accept="video/*" onchange={on_file_change} style="display: none;" />
+                    {if is_uploading { "Uploading..." } else { "Load Video..." }}
+                    <input
+                        type="file"
+                        accept="video/*"
+                        onchange={on_file_change}
+                        disabled={is_uploading}
+                        style="display: none;"
+                    />
                 </label>
             </div>
         </div>
     }
+}
+
+async fn upload_video(file: web_sys::File) -> Result<VideoMeta, String> {
+    let form_data = FormData::new().map_err(|e| format!("FormData error: {:?}", e))?;
+    form_data
+        .append_with_blob("file", &file)
+        .map_err(|e| format!("Append error: {:?}", e))?;
+
+    let response = Request::post("/api/v1/videos/upload")
+        .body(form_data)
+        .map_err(|e| format!("Request error: {:?}", e))?
+        .send()
+        .await
+        .map_err(|e| format!("Send error: {:?}", e))?;
+
+    if !response.ok() {
+        return Err(format!("Upload failed: {}", response.status()));
+    }
+
+    response
+        .json::<VideoMeta>()
+        .await
+        .map_err(|e| format!("Parse error: {:?}", e))
 }
 
 fn render_still_sampler_dialog(
@@ -113,10 +213,7 @@ fn render_still_sampler_dialog(
     }
 }
 
-fn find_connected_video(
-    node: &Node,
-    state: &AppStateContext,
-) -> Option<yt_rs_shared::VideoInputData> {
+fn find_connected_video(node: &Node, state: &AppStateContext) -> Option<VideoInputData> {
     let input_conn = node.inputs.first()?;
     let connection = state
         .connections

@@ -30,15 +30,18 @@ impl AppState {
         }
     }
 
-    /// Saves a video file and returns the path.
+    /// Saves a video file to work directory and returns the path.
     pub async fn save_video(&self, id: Uuid, name: &str, data: &[u8]) -> std::io::Result<String> {
-        let work_dir = self.inner.data_dir.join("videos");
+        let work_dir = self.inner.data_dir.join("work/videos");
         tokio::fs::create_dir_all(&work_dir).await?;
-        let ext = std::path::Path::new(name).extension().and_then(|e| e.to_str()).unwrap_or("mp4");
+        let ext = std::path::Path::new(name)
+            .extension()
+            .and_then(|e| e.to_str())
+            .unwrap_or("mp4");
         let filename = format!("{}.{}", id, ext);
         let path = work_dir.join(&filename);
         tokio::fs::write(&path, data).await?;
-        Ok(format!("/data/videos/{}", filename))
+        Ok(path.to_string_lossy().to_string())
     }
 
     /// Lists all projects.

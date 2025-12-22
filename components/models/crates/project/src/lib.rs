@@ -1,10 +1,14 @@
-//! Project model for saving/loading canvas state.
+//! Project serialization for yt-rs.
 
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use super::{CanvasState, Connection, Node};
+pub use yt_rs_nodes::{
+    BezierControlPoints, CanvasState, Connection, Connector, ConnectorPosition, ConnectorType,
+    Node, NodeData, PendingConnection, Position, ProcessingStatus, Size, Still, StillSamplerData,
+    UploadStatus, VideoInputData, Viewport,
+};
 
 /// A project containing the full canvas state.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
