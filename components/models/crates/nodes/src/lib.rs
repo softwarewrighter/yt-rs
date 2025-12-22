@@ -475,7 +475,7 @@ impl Node {
             size: Size::new(200.0, 160.0),
             data: NodeData::StillPreview(StillPreviewData::default()),
             inputs: vec![Connector::input("still_in", 80.0)],
-            outputs: Vec::new(),
+            outputs: vec![Connector::output("still_out", 80.0)],
             z_index: 0,
         }
     }

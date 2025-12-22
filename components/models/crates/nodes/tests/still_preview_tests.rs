@@ -32,10 +32,15 @@ fn test_node_new_still_preview_has_one_input() {
 }
 
 #[test]
-fn test_node_new_still_preview_has_no_outputs() {
+fn test_node_new_still_preview_has_one_output() {
     let node = Node::new_still_preview(Position::new(0.0, 0.0));
 
-    assert!(node.outputs.is_empty());
+    assert_eq!(node.outputs.len(), 1);
+    assert_eq!(node.outputs[0].name, "still_out");
+    assert!(matches!(
+        node.outputs[0].connector_type,
+        ConnectorType::Output
+    ));
 }
 
 #[test]
