@@ -143,6 +143,25 @@ impl AppState {
         if let Some(pending) = self.pending_connection.take() {
             let conn = Connection::new(pending.from_node, pending.from_connector, to_node, to_conn);
             self.connections.insert(conn.id, conn);
+
+            // If connecting to a StillSampler, generate stills from the source video
+            self.update_stills_on_connection(pending.from_node, to_node);
+        }
+    }
+
+    fn update_stills_on_connection(&mut self, from_node: Uuid, to_node: Uuid) {
+        // Get duration from source VideoInput
+        let duration = self.nodes.get(&from_node).and_then(|n| match &n.data {
+            NodeData::VideoInput(data) => data.duration_seconds,
+            _ => None,
+        });
+
+        // If target is StillSampler, generate stills
+        if let Some(duration) = duration
+            && let Some(target) = self.nodes.get_mut(&to_node)
+            && let NodeData::StillSampler(ref mut data) = target.data
+        {
+            data.generate_stills(duration);
         }
     }
 }

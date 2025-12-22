@@ -69,10 +69,20 @@ fn render_node_details(node: &Node, state: &AppStateContext) -> Html {
             }
         }
         NodeData::StillSampler(sampler) => {
+            let still_count = sampler.extracted_stills.len();
             html! {
-                <text x="10" y="44" fill="#aaa" font-size="10" style="pointer-events: none;">
-                    {format!("{}s interval", sampler.interval_seconds)}
-                </text>
+                <>
+                    <text x="10" y="44" fill="#aaa" font-size="10" style="pointer-events: none;">
+                        {format!("{}s interval", sampler.interval_seconds)}
+                    </text>
+                    <text x="10" y="58" fill="#888" font-size="10" style="pointer-events: none;">
+                        {if still_count > 0 {
+                            format!("{} stills", still_count)
+                        } else {
+                            "No video connected".to_string()
+                        }}
+                    </text>
+                </>
             }
         }
         NodeData::Viewer(_) => {
