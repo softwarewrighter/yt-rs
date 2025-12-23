@@ -1,7 +1,5 @@
 //! Video upload and management routes.
 
-use std::path::Path;
-
 use axum::{
     Json, Router,
     body::Body,
@@ -16,7 +14,7 @@ use tokio::io::{AsyncReadExt, AsyncSeekExt};
 use tokio_util::io::ReaderStream;
 use uuid::Uuid;
 
-use crate::state::AppState;
+use crate::state::{self, AppState};
 
 /// Video metadata response.
 #[derive(Debug, Serialize, Deserialize)]
@@ -56,12 +54,12 @@ async fn upload_video(
     let data = field.bytes().await.map_err(|_| StatusCode::BAD_REQUEST)?;
 
     let id = Uuid::new_v4();
-    let path = state
-        .save_video(id, &name, &data)
+    let path = state::save_video(&state, id, &name, &data)
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
-    let duration_seconds = yt_rs_ffmpeg::get_duration(Path::new(&path)).await.ok();
+    let duration_seconds = yt_rs_ffmpeg::get_duration(&path).await.ok();
+    let path = path.to_string_lossy().to_string();
 
     Ok(Json(VideoMeta {
         id,
@@ -77,8 +75,7 @@ async fn stream_video(
     AxumPath(id): AxumPath<Uuid>,
     headers: HeaderMap,
 ) -> Result<Response, StatusCode> {
-    let video_path = state
-        .get_video_path(id)
+    let video_path = state::get_video_path(&state, id)
         .await
         .ok_or(StatusCode::NOT_FOUND)?;
 
@@ -140,54 +137,34 @@ async fn get_thumbnail(
     State(state): State<AppState>,
     AxumPath(id): AxumPath<Uuid>,
 ) -> Result<Response, StatusCode> {
-    let thumbnail_path = state
-        .get_or_create_thumbnail(id)
+    let path = state::get_or_create_thumbnail(&state, id)
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-
-    let file = File::open(&thumbnail_path)
-        .await
-        .map_err(|_| StatusCode::NOT_FOUND)?;
-
-    let metadata = file
-        .metadata()
-        .await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-    let stream = ReaderStream::new(file);
-    let body = Body::from_stream(stream);
-
-    Ok(Response::builder()
-        .status(StatusCode::OK)
-        .header(header::CONTENT_TYPE, "image/jpeg")
-        .header(header::CONTENT_LENGTH, metadata.len())
-        .body(body)
-        .unwrap())
+    serve_image(&path).await
 }
 
 async fn get_still_thumbnail(
     State(state): State<AppState>,
     AxumPath((video_id, timestamp)): AxumPath<(Uuid, f64)>,
 ) -> Result<Response, StatusCode> {
-    let still_path = state
-        .get_or_create_still_thumbnail(video_id, timestamp)
+    let path = state::get_or_create_still(&state, video_id, timestamp)
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    serve_image(&path).await
+}
 
-    let file = File::open(&still_path)
-        .await
-        .map_err(|_| StatusCode::NOT_FOUND)?;
-
-    let metadata = file
+async fn serve_image(path: &std::path::Path) -> Result<Response, StatusCode> {
+    let file = File::open(path).await.map_err(|_| StatusCode::NOT_FOUND)?;
+    let len = file
         .metadata()
         .await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-    let stream = ReaderStream::new(file);
-    let body = Body::from_stream(stream);
-
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
+        .len();
+    let body = Body::from_stream(ReaderStream::new(file));
     Ok(Response::builder()
         .status(StatusCode::OK)
         .header(header::CONTENT_TYPE, "image/jpeg")
-        .header(header::CONTENT_LENGTH, metadata.len())
+        .header(header::CONTENT_LENGTH, len)
         .body(body)
         .unwrap())
 }

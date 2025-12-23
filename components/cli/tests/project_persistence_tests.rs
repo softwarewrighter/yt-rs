@@ -2,13 +2,14 @@
 
 use uuid::Uuid;
 
+use yt_rs_cli::config::AppConfig;
 use yt_rs_cli::state::AppState;
 use yt_rs_shared::Project;
 
 #[tokio::test]
 async fn test_save_project_creates_file() {
     let temp = tempfile::tempdir().unwrap();
-    let state = AppState::new(temp.path().to_path_buf());
+    let state = AppState::new(temp.path().to_path_buf(), AppConfig::default());
 
     let project = Project::new("Test Project");
     let id = project.id;
@@ -22,7 +23,7 @@ async fn test_save_project_creates_file() {
 #[tokio::test]
 async fn test_load_project_returns_saved_project() {
     let temp = tempfile::tempdir().unwrap();
-    let state = AppState::new(temp.path().to_path_buf());
+    let state = AppState::new(temp.path().to_path_buf(), AppConfig::default());
 
     let project = Project::new("My Project");
     let id = project.id;
@@ -39,7 +40,7 @@ async fn test_load_project_returns_saved_project() {
 #[tokio::test]
 async fn test_load_nonexistent_project_returns_none() {
     let temp = tempfile::tempdir().unwrap();
-    let state = AppState::new(temp.path().to_path_buf());
+    let state = AppState::new(temp.path().to_path_buf(), AppConfig::default());
 
     let id = Uuid::new_v4();
     let loaded = state.load_project_from_disk(id).await.unwrap();
@@ -50,7 +51,7 @@ async fn test_load_nonexistent_project_returns_none() {
 #[tokio::test]
 async fn test_save_project_overwrites_existing() {
     let temp = tempfile::tempdir().unwrap();
-    let state = AppState::new(temp.path().to_path_buf());
+    let state = AppState::new(temp.path().to_path_buf(), AppConfig::default());
 
     let mut project = Project::new("Original Name");
     let id = project.id;
@@ -67,7 +68,7 @@ async fn test_save_project_overwrites_existing() {
 #[tokio::test]
 async fn test_list_projects_from_disk() {
     let temp = tempfile::tempdir().unwrap();
-    let state = AppState::new(temp.path().to_path_buf());
+    let state = AppState::new(temp.path().to_path_buf(), AppConfig::default());
 
     let project1 = Project::new("Project 1");
     let project2 = Project::new("Project 2");
@@ -82,7 +83,7 @@ async fn test_list_projects_from_disk() {
 #[tokio::test]
 async fn test_delete_project_from_disk() {
     let temp = tempfile::tempdir().unwrap();
-    let state = AppState::new(temp.path().to_path_buf());
+    let state = AppState::new(temp.path().to_path_buf(), AppConfig::default());
 
     let project = Project::new("To Delete");
     let id = project.id;

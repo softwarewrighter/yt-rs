@@ -62,8 +62,8 @@ pub fn routes() -> Router<AppState> {
 
 /// Lists all projects.
 async fn list_projects(State(state): State<AppState>) -> Json<ProjectListResponse> {
-    let projects = state.list_projects().await;
-    let summaries = projects.iter().map(ProjectSummary::from).collect();
+    let projects = state.projects().read().await;
+    let summaries = projects.values().map(ProjectSummary::from).collect();
     Json(ProjectListResponse {
         projects: summaries,
     })
@@ -75,7 +75,11 @@ async fn create_project(
     Json(request): Json<CreateProjectRequest>,
 ) -> (StatusCode, Json<ProjectResponse>) {
     let project = Project::new(request.name);
-    state.upsert_project(project.clone()).await;
+    state
+        .projects()
+        .write()
+        .await
+        .insert(project.id, project.clone());
     (StatusCode::CREATED, Json(ProjectResponse { project }))
 }
 
@@ -85,8 +89,11 @@ async fn get_project(
     Path(id): Path<Uuid>,
 ) -> Result<Json<ProjectResponse>, StatusCode> {
     state
-        .get_project(id)
+        .projects()
+        .read()
         .await
+        .get(&id)
+        .cloned()
         .map(|project| Json(ProjectResponse { project }))
         .ok_or(StatusCode::NOT_FOUND)
 }
@@ -100,7 +107,11 @@ async fn update_project(
     if project.id != id {
         return Err(StatusCode::BAD_REQUEST);
     }
-    state.upsert_project(project.clone()).await;
+    state
+        .projects()
+        .write()
+        .await
+        .insert(project.id, project.clone());
     Ok(Json(ProjectResponse { project }))
 }
 
@@ -110,8 +121,10 @@ async fn delete_project(
     Path(id): Path<Uuid>,
 ) -> Result<StatusCode, StatusCode> {
     state
-        .delete_project(id)
+        .projects()
+        .write()
         .await
+        .remove(&id)
         .map(|_| StatusCode::NO_CONTENT)
         .ok_or(StatusCode::NOT_FOUND)
 }

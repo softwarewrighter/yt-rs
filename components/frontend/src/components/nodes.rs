@@ -4,350 +4,306 @@ use wasm_bindgen::JsCast;
 use yew::prelude::*;
 
 use crate::state::{AppAction, AppStateContext};
-use yt_rs_shared::{ConnectorPosition, Node, NodeData, Position, VideoInputData};
+use yt_rs_shared::{ConnectorPosition, GenerationStatus, Node, NodeData, Position, VideoInputData};
 
-/// Focuses the canvas container to enable keyboard events.
-fn focus_canvas() {
-    if let Some(window) = web_sys::window()
-        && let Some(document) = window.document()
-        && let Some(element) = document.query_selector(".canvas-container").ok().flatten()
-        && let Some(html_element) = element.dyn_ref::<web_sys::HtmlElement>()
-    {
-        let _ = html_element.focus();
-    }
-}
-
-/// Gets the mouse position relative to the SVG canvas.
-fn get_svg_position(e: &MouseEvent) -> Option<Position> {
-    let window = web_sys::window()?;
-    let document = window.document()?;
-    let svg = document.query_selector("svg.canvas").ok()??;
-    let rect = svg.get_bounding_client_rect();
-    let x = e.client_x() as f64 - rect.left();
-    let y = e.client_y() as f64 - rect.top();
-    Some(Position::new(x, y))
-}
+// === Public API ===
 
 /// Renders a single node with its connectors as SVG.
 pub fn render_node(node: &Node, state: &AppStateContext) -> Html {
-    let node_id = node.id;
-    let node_pos = node.position;
-    let is_selected = state.selected_node == Some(node_id);
-    let border_color = if is_selected { "#6c6cff" } else { "#3d3d4d" };
+    let id = node.id;
+    let pos = node.position;
+    let border = if state.selected_node == Some(id) {
+        "#6c6cff"
+    } else {
+        "#3d3d4d"
+    };
 
-    let state_drag = state.clone();
-    let on_mousedown = Callback::from(move |e: MouseEvent| {
-        e.stop_propagation();
-        e.prevent_default();
-        focus_canvas(); // Ensure keyboard events work
-        // Get click position relative to SVG and convert to canvas coordinates
-        if let Some(screen_pos) = get_svg_position(&e) {
-            let canvas_pos = state_drag.canvas.screen_to_canvas(screen_pos);
-            // Offset is where we clicked within the node (canvas_pos - node_pos)
-            let offset = Position::new(canvas_pos.x - node_pos.x, canvas_pos.y - node_pos.y);
-            state_drag.dispatch(AppAction::StartDrag(node_id, offset));
-        }
-    });
-
-    let state_dbl = state.clone();
-    let on_dblclick = Callback::from(move |e: MouseEvent| {
-        e.stop_propagation();
-        state_dbl.dispatch(AppAction::OpenDialog(node_id));
-    });
-
-    let node_details = render_node_details(node, state);
+    let on_down = {
+        let s = state.clone();
+        Callback::from(move |e: MouseEvent| handle_drag_start(&s, id, pos, &e))
+    };
+    let on_dbl = {
+        let s = state.clone();
+        Callback::from(move |e: MouseEvent| {
+            e.stop_propagation();
+            s.dispatch(AppAction::OpenDialog(id));
+        })
+    };
 
     html! {
-        <g class="node" transform={format!("translate({}, {})", node_pos.x, node_pos.y)}>
-            <rect
-                width={node.size.width.to_string()}
-                height={node.size.height.to_string()}
-                rx="8"
-                fill="#2d2d3d"
-                stroke={border_color}
-                stroke-width="2"
-                onmousedown={on_mousedown}
-                ondblclick={on_dblclick}
-                style="cursor: move;"
-            />
-            <text x="10" y="24" fill="#fff" font-size="12" style="pointer-events: none;">{node.data.type_name()}</text>
-            {node_details}
+        <g class="node" transform={format!("translate({}, {})", pos.x, pos.y)}>
+            <rect width={node.size.width.to_string()} height={node.size.height.to_string()} rx="8"
+                  fill="#2d2d3d" stroke={border} stroke-width="2" onmousedown={on_down} ondblclick={on_dbl} style="cursor: move;" />
+            {txt(10.0, 24.0, node.data.type_name(), "#fff", 12)}
+            {render_details(node, state)}
             {render_connectors(node, state)}
         </g>
     }
 }
 
-fn render_node_details(node: &Node, state: &AppStateContext) -> Html {
+// === Node Details Rendering ===
+
+fn render_details(node: &Node, state: &AppStateContext) -> Html {
     match &node.data {
-        NodeData::VideoInput(video) => {
-            if let Some(ref name) = video.file_name {
-                let duration = video
-                    .duration_seconds
+        NodeData::VideoInput(v) => render_video_info(v),
+        NodeData::StillSampler(s) => two_line(
+            format!("{}s interval", s.interval_seconds),
+            stills_text(s.extracted_stills.len()),
+        ),
+        NodeData::Viewer(_) => render_viewer_info(find_connected_video(node, state)),
+        NodeData::Selector(d) => two_line(
+            format!("Index: {}", d.selected_index),
+            stills_text(find_stills_count(node, state)),
+        ),
+        NodeData::StillPreview(_) => render_still_preview(find_still_info(node, state)),
+        NodeData::GenerateDialog(d) => two_line(
+            stills_text(find_stills_count(node, state)),
+            status_text(&d.generation_status),
+        ),
+        NodeData::TextView(_) => txt(
+            10.0,
+            44.0,
+            if find_text(node, state).is_some() {
+                "Text available"
+            } else {
+                "No text connected"
+            },
+            "#888",
+            10,
+        ),
+    }
+}
+
+fn render_video_info(v: &VideoInputData) -> Html {
+    v.file_name
+        .as_ref()
+        .map(|n| {
+            two_line(
+                n.clone(),
+                v.duration_seconds
                     .map(|d| format!("{:.1}s", d))
-                    .unwrap_or_default();
-                html! {
-                    <>
-                        <text x="10" y="44" fill="#aaa" font-size="10" style="pointer-events: none;">{name}</text>
-                        if !duration.is_empty() {
-                            <text x="10" y="58" fill="#888" font-size="10" style="pointer-events: none;">{duration}</text>
-                        }
-                    </>
-                }
-            } else {
-                html! {}
-            }
-        }
-        NodeData::StillSampler(sampler) => {
-            let still_count = sampler.extracted_stills.len();
-            html! {
-                <>
-                    <text x="10" y="44" fill="#aaa" font-size="10" style="pointer-events: none;">
-                        {format!("{}s interval", sampler.interval_seconds)}
-                    </text>
-                    <text x="10" y="58" fill="#888" font-size="10" style="pointer-events: none;">
-                        {if still_count > 0 {
-                            format!("{} stills", still_count)
-                        } else {
-                            "No video connected".to_string()
-                        }}
-                    </text>
-                </>
-            }
-        }
-        NodeData::Viewer(_) => {
-            if let Some(video) = find_connected_video(node, state) {
-                let name = video.file_name.unwrap_or_else(|| "Unknown".to_string());
-                let duration = video
-                    .duration_seconds
-                    .map(|d| format!("{:.1}s", d))
-                    .unwrap_or_default();
-                html! {
-                    <>
-                        <text x="10" y="44" fill="#aaa" font-size="10" style="pointer-events: none;">{name}</text>
-                        if !duration.is_empty() {
-                            <text x="10" y="58" fill="#888" font-size="10" style="pointer-events: none;">{duration}</text>
-                        }
-                    </>
-                }
-            } else {
-                html! {
-                    <text x="10" y="44" fill="#666" font-size="10" style="pointer-events: none;">
-                        {"No video connected"}
-                    </text>
-                }
-            }
-        }
-        NodeData::Selector(data) => {
-            let stills_count = find_connected_stills_count(node, state);
-            html! {
-                <>
-                    <text x="10" y="44" fill="#aaa" font-size="10" style="pointer-events: none;">
-                        {format!("Index: {}", data.selected_index)}
-                    </text>
-                    <text x="10" y="58" fill="#888" font-size="10" style="pointer-events: none;">
-                        {if stills_count > 0 {
-                            format!("{} stills", stills_count)
-                        } else {
-                            "No input".to_string()
-                        }}
-                    </text>
-                </>
-            }
-        }
-        NodeData::StillPreview(_) => {
-            if let Some((video_id, timestamp)) = find_connected_still_info(node, state) {
-                let url = format!("/api/v1/stills/{}/{:.2}", video_id, timestamp);
-                html! {
-                    <>
-                        <text x="10" y="44" fill="#888" font-size="10" style="pointer-events: none;">
-                            {format!("{:.1}s", timestamp)}
-                        </text>
-                        <image
-                            x="10"
-                            y="50"
-                            width="180"
-                            height="100"
-                            href={url}
-                            style="pointer-events: none;"
-                        />
-                    </>
-                }
-            } else {
-                html! {
-                    <text x="10" y="44" fill="#666" font-size="10" style="pointer-events: none;">
-                        {"No still connected"}
-                    </text>
-                }
-            }
-        }
+                    .unwrap_or_default(),
+            )
+        })
+        .unwrap_or_default()
+}
+
+fn render_viewer_info(v: Option<VideoInputData>) -> Html {
+    v.map(|v| {
+        two_line(
+            v.file_name.unwrap_or("Unknown".into()),
+            v.duration_seconds
+                .map(|d| format!("{:.1}s", d))
+                .unwrap_or_default(),
+        )
+    })
+    .unwrap_or_else(|| txt(10.0, 44.0, "No video connected", "#666", 10))
+}
+
+fn render_still_preview(info: Option<(uuid::Uuid, f64)>) -> Html {
+    info.map(|(vid, ts)| html! {
+        <>{txt(10.0, 44.0, format!("{:.1}s", ts), "#888", 10)}<image x="10" y="50" width="180" height="100" href={format!("/api/v1/stills/{}/{:.2}", vid, ts)} style="pointer-events: none;" /></>
+    }).unwrap_or_else(|| txt(10.0, 44.0, "No still connected", "#666", 10))
+}
+
+fn stills_text(count: usize) -> String {
+    if count > 0 {
+        format!("{} stills", count)
+    } else {
+        "No input".into()
     }
 }
-
-fn find_connected_video(node: &Node, state: &AppStateContext) -> Option<VideoInputData> {
-    let input_conn = node.inputs.first()?;
-    let connection = state
-        .connections
-        .values()
-        .find(|c| c.to_node == node.id && c.to_connector == input_conn.id)?;
-    let source_node = state.nodes.get(&connection.from_node)?;
-    match &source_node.data {
-        NodeData::VideoInput(data) => Some(data.clone()),
-        _ => None,
+fn status_text(s: &GenerationStatus) -> String {
+    match s {
+        GenerationStatus::Idle => "Ready",
+        GenerationStatus::Complete => "Complete",
+        GenerationStatus::Error(_) => "Error",
+        GenerationStatus::Generating {
+            current_still,
+            total_stills,
+        } => return format!("{}/{}", current_still, total_stills),
     }
+    .into()
 }
 
-fn find_connected_stills_count(node: &Node, state: &AppStateContext) -> usize {
-    let input_conn = match node.inputs.first() {
-        Some(c) => c,
-        None => return 0,
-    };
-    let connection = match state
-        .connections
-        .values()
-        .find(|c| c.to_node == node.id && c.to_connector == input_conn.id)
-    {
-        Some(c) => c,
-        None => return 0,
-    };
-    let source_node = match state.nodes.get(&connection.from_node) {
-        Some(n) => n,
-        None => return 0,
-    };
-    match &source_node.data {
-        NodeData::StillSampler(data) => data.extracted_stills.len(),
-        NodeData::Selector(_) => {
-            // Recursively find stills count from upstream
-            find_connected_stills_count(source_node, state)
-        }
-        _ => 0,
-    }
+// === SVG Helpers ===
+
+fn txt<S: Into<String>>(x: f64, y: f64, text: S, fill: &str, size: u8) -> Html {
+    let fill = fill.to_string();
+    html! { <text x={x.to_string()} y={y.to_string()} {fill} font-size={size.to_string()} style="pointer-events: none;">{text.into()}</text> }
 }
 
-fn find_connected_still_info(node: &Node, state: &AppStateContext) -> Option<(uuid::Uuid, f64)> {
-    // Find the connected Selector node
-    let input_conn = node.inputs.first()?;
-    let connection = state
-        .connections
-        .values()
-        .find(|c| c.to_node == node.id && c.to_connector == input_conn.id)?;
-    let selector_node = state.nodes.get(&connection.from_node)?;
-
-    // Get the selected index from Selector
-    let selected_index = match &selector_node.data {
-        NodeData::Selector(data) => data.selected_index,
-        _ => return None,
-    };
-
-    // Find the stills array from the Selector's input
-    let stills = find_stills_from_selector(selector_node, state)?;
-    let still = stills.get(selected_index)?;
-
-    // Find the video source by tracing back
-    let video_id = find_video_id_upstream(selector_node, state)?;
-
-    Some((video_id, still.timestamp_seconds))
+fn two_line<S: Into<String>>(line1: S, line2: String) -> Html {
+    let l1 = line1.into();
+    html! { <>{txt(10.0, 44.0, l1, "#aaa", 10)}{if !line2.is_empty() { txt(10.0, 58.0, line2, "#888", 10) } else { html! {} }}</> }
 }
 
-fn find_stills_from_selector(
-    selector_node: &Node,
-    state: &AppStateContext,
-) -> Option<Vec<yt_rs_shared::Still>> {
-    let input_conn = selector_node.inputs.first()?;
-    let connection = state
-        .connections
-        .values()
-        .find(|c| c.to_node == selector_node.id && c.to_connector == input_conn.id)?;
-    let source_node = state.nodes.get(&connection.from_node)?;
-
-    match &source_node.data {
-        NodeData::StillSampler(data) => Some(data.extracted_stills.clone()),
-        NodeData::Selector(_) => find_stills_from_selector(source_node, state),
-        _ => None,
-    }
-}
-
-fn find_video_id_upstream(node: &Node, state: &AppStateContext) -> Option<uuid::Uuid> {
-    for input in &node.inputs {
-        let connection = state
-            .connections
-            .values()
-            .find(|c| c.to_node == node.id && c.to_connector == input.id);
-        if let Some(conn) = connection {
-            let upstream = state.nodes.get(&conn.from_node)?;
-            match &upstream.data {
-                NodeData::VideoInput(data) => return data.file_id,
-                _ => {
-                    if let Some(id) = find_video_id_upstream(upstream, state) {
-                        return Some(id);
-                    }
-                }
-            }
-        }
-    }
-    None
-}
+// === Connectors ===
 
 fn render_connectors(node: &Node, state: &AppStateContext) -> Html {
-    let node_id = node.id;
-    let node_width = node.size.width;
-    let node_position = node.position;
-
-    // Render all outputs
-    let outputs: Html = node
+    let (id, w, pos) = (node.id, node.size.width, node.position);
+    let outs: Html = node
         .outputs
         .iter()
-        .map(|conn| {
-            let conn_id = conn.id;
-            let y_offset = match conn.position {
-                ConnectorPosition::Right(y) => y,
-                ConnectorPosition::Left(y) => y,
-            };
-            let state_conn = state.clone();
-            let start_pos = Position::new(node_position.x + node_width, node_position.y + y_offset);
-            let on_click = Callback::from(move |e: MouseEvent| {
-                e.stop_propagation();
-                state_conn.dispatch(AppAction::StartConnection(node_id, conn_id, start_pos));
-            });
-            html! {
-                <circle
-                    cx={node_width.to_string()}
-                    cy={y_offset.to_string()}
-                    r="6"
-                    fill="#4a9eff"
-                    onclick={on_click}
-                    style="cursor: crosshair;"
-                />
-            }
-        })
+        .map(|c| render_conn(c.id, id, w, pos, y_of(&c.position), true, state))
         .collect();
-
-    // Render all inputs
-    let inputs: Html = node
+    let ins: Html = node
         .inputs
         .iter()
-        .map(|conn| {
-            let conn_id = conn.id;
-            let y_offset = match conn.position {
-                ConnectorPosition::Left(y) => y,
-                ConnectorPosition::Right(y) => y,
-            };
-            let state_conn = state.clone();
-            let on_click = Callback::from(move |e: MouseEvent| {
-                e.stop_propagation();
-                state_conn.dispatch(AppAction::CompleteConnection(node_id, conn_id));
-            });
-            html! {
-                <circle
-                    cx="0"
-                    cy={y_offset.to_string()}
-                    r="6"
-                    fill="#ff6b6b"
-                    onclick={on_click}
-                    style="cursor: crosshair;"
-                />
-            }
-        })
+        .map(|c| render_conn(c.id, id, w, pos, y_of(&c.position), false, state))
         .collect();
+    html! { <>{outs}{ins}</> }
+}
 
-    html! { <>{outputs}{inputs}</> }
+fn render_conn(
+    cid: uuid::Uuid,
+    nid: uuid::Uuid,
+    w: f64,
+    npos: Position,
+    y: f64,
+    is_out: bool,
+    state: &AppStateContext,
+) -> Html {
+    let (cx, fill) = if is_out {
+        (w, "#4a9eff")
+    } else {
+        (0.0, "#ff6b6b")
+    };
+    let s = state.clone();
+    let cb = Callback::from(move |e: MouseEvent| {
+        e.stop_propagation();
+        if is_out {
+            s.dispatch(AppAction::StartConnection(
+                nid,
+                cid,
+                Position::new(npos.x + w, npos.y + y),
+            ));
+        } else {
+            s.dispatch(AppAction::CompleteConnection(nid, cid));
+        }
+    });
+    html! { <circle cx={cx.to_string()} cy={y.to_string()} r="6" {fill} onclick={cb} style="cursor: crosshair;" /> }
+}
+
+fn y_of(p: &ConnectorPosition) -> f64 {
+    match p {
+        ConnectorPosition::Left(y) | ConnectorPosition::Right(y) => *y,
+    }
+}
+
+// === Event Handlers ===
+
+fn handle_drag_start(state: &AppStateContext, id: uuid::Uuid, npos: Position, e: &MouseEvent) {
+    e.stop_propagation();
+    e.prevent_default();
+    focus_canvas();
+    if let Some(sp) = svg_pos(e) {
+        let cp = state.canvas.screen_to_canvas(sp);
+        state.dispatch(AppAction::StartDrag(
+            id,
+            Position::new(cp.x - npos.x, cp.y - npos.y),
+        ));
+    }
+}
+
+fn focus_canvas() {
+    if let Some(el) = web_sys::window()
+        .and_then(|w| w.document())
+        .and_then(|d| d.query_selector(".canvas-container").ok().flatten())
+    {
+        let _ = el.dyn_ref::<web_sys::HtmlElement>().map(|h| h.focus());
+    }
+}
+
+fn svg_pos(e: &MouseEvent) -> Option<Position> {
+    let svg = web_sys::window()?
+        .document()?
+        .query_selector("svg.canvas")
+        .ok()??;
+    let r = svg.get_bounding_client_rect();
+    Some(Position::new(
+        e.client_x() as f64 - r.left(),
+        e.client_y() as f64 - r.top(),
+    ))
+}
+
+// === Graph Traversal ===
+
+fn find_connected_video(node: &Node, state: &AppStateContext) -> Option<VideoInputData> {
+    let c = find_input_conn(node, state)?;
+    match &state.nodes.get(&c.from_node)?.data {
+        NodeData::VideoInput(d) => Some(d.clone()),
+        _ => None,
+    }
+}
+
+fn find_stills_count(node: &Node, state: &AppStateContext) -> usize {
+    find_input_conn(node, state)
+        .and_then(|c| state.nodes.get(&c.from_node))
+        .map(|n| match &n.data {
+            NodeData::StillSampler(d) => d.extracted_stills.len(),
+            NodeData::Selector(_) => find_stills_count(n, state),
+            _ => 0,
+        })
+        .unwrap_or(0)
+}
+
+fn find_still_info(node: &Node, state: &AppStateContext) -> Option<(uuid::Uuid, f64)> {
+    let sel = state.nodes.get(&find_input_conn(node, state)?.from_node)?;
+    let idx = match &sel.data {
+        NodeData::Selector(d) => d.selected_index,
+        _ => return None,
+    };
+    let stills = find_stills_from(sel, state)?;
+    Some((
+        find_video_id(sel, state)?,
+        stills.get(idx)?.timestamp_seconds,
+    ))
+}
+
+fn find_stills_from(node: &Node, state: &AppStateContext) -> Option<Vec<yt_rs_shared::Still>> {
+    let src = state.nodes.get(&find_input_conn(node, state)?.from_node)?;
+    match &src.data {
+        NodeData::StillSampler(d) => Some(d.extracted_stills.clone()),
+        NodeData::Selector(_) => find_stills_from(src, state),
+        _ => None,
+    }
+}
+
+fn find_video_id(node: &Node, state: &AppStateContext) -> Option<uuid::Uuid> {
+    node.inputs.iter().find_map(|i| {
+        let up = state.nodes.get(
+            &state
+                .connections
+                .values()
+                .find(|c| c.to_node == node.id && c.to_connector == i.id)?
+                .from_node,
+        )?;
+        match &up.data {
+            NodeData::VideoInput(d) => d.file_id,
+            _ => find_video_id(up, state),
+        }
+    })
+}
+
+fn find_text(node: &Node, state: &AppStateContext) -> Option<yt_rs_shared::GeneratedDialog> {
+    match &state
+        .nodes
+        .get(&find_input_conn(node, state)?.from_node)?
+        .data
+    {
+        NodeData::GenerateDialog(d) => d.generated_dialog.clone(),
+        _ => None,
+    }
+}
+
+fn find_input_conn<'a>(
+    node: &Node,
+    state: &'a AppStateContext,
+) -> Option<&'a yt_rs_shared::Connection> {
+    let id = node.inputs.first()?.id;
+    state
+        .connections
+        .values()
+        .find(|c| c.to_node == node.id && c.to_connector == id)
 }

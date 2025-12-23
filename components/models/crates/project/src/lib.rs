@@ -7,9 +7,10 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 pub use yt_rs_nodes::{
-    BezierControlPoints, CanvasState, Connection, Connector, ConnectorPosition, ConnectorType,
-    Node, NodeData, PendingConnection, Position, ProcessingStatus, SelectorData, Size, Still,
-    StillPreviewData, StillSamplerData, UploadStatus, VideoInputData, ViewerData, Viewport,
+    BezierControlPoints, CanvasState, ClipDialog, Connection, Connector, ConnectorPosition,
+    ConnectorType, GenerateDialogData, GeneratedDialog, GenerationStatus, Node, NodeData,
+    PendingConnection, Position, ProcessingStatus, SelectorData, Size, Still, StillPreviewData,
+    StillSamplerData, TextViewData, UploadStatus, VideoInputData, ViewerData, Viewport,
 };
 
 /// A project containing the full canvas state.

@@ -1,0 +1,22 @@
+# yt-rs Configuration File
+# Copy to config.toml and customize as needed.
+#
+# Usage: ./scripts/run.sh -c config.toml
+#        yt-rs serve -c config.toml
+
+[generate_dialog]
+# Ollama server hostname
+ollama_host = "big72"
+
+# Ollama server port
+ollama_port = 11434
+
+# Vision model for analyzing still images
+vision_model = "llama3.2-vision:11b"
+
+# Optional: Custom system prompt for the vision model
+# system_prompt = "You are analyzing video frames for a YouTube video..."
+
+[workspace]
+# Default project name for save/restore
+default_project_name = "default"

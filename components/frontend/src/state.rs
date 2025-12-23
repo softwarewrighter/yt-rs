@@ -94,7 +94,7 @@ impl AppState {
             ClearJustDragged => self.just_dragged = false,
             OpenDialog(id) => {
                 self.open_dialog = Some(id);
-                self.dragging = None; // Clear drag state when opening dialog
+                self.dragging = None;
             }
             CloseDialog => self.open_dialog = None,
             StartConnection(n, c, p) => {
@@ -120,6 +120,8 @@ impl AppState {
             NodeData::Viewer(_) => Node::new_viewer(pos),
             NodeData::Selector(_) => Node::new_selector(pos),
             NodeData::StillPreview(_) => Node::new_still_preview(pos),
+            NodeData::GenerateDialog(_) => Node::new_generate_dialog(pos),
+            NodeData::TextView(_) => Node::new_text_view(pos),
         };
         self.nodes.insert(node.id, node);
     }

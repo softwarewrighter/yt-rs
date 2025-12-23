@@ -46,6 +46,10 @@ yt-rs is a web-based node editor for video processing workflows. The system cons
 └─────────────────────────────────────────────────────────────────┘
 ```
 
+## Physical Design
+
+See `docs/physical-design.md` for the authoritative crate dependency graph and coupling rules.
+
 ## Project Structure
 
 ```

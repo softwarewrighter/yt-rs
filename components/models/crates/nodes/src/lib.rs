@@ -377,6 +377,58 @@ pub struct StillPreviewData {
     // Marker type - resolves data from connection at render time
 }
 
+/// Processing status for dialog generation.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
+pub enum GenerationStatus {
+    #[default]
+    Idle,
+    Generating {
+        current_still: usize,
+        total_stills: usize,
+    },
+    Complete,
+    Error(String),
+}
+
+/// Dialog for a single video clip.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
+pub struct ClipDialog {
+    /// Timestamp in seconds where this clip starts.
+    pub timestamp_seconds: f64,
+    /// Generated dialog text for this clip.
+    pub dialog_text: String,
+    /// Whether this clip is considered interesting.
+    pub is_interesting: bool,
+}
+
+/// Generated dialog output structure.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
+pub struct GeneratedDialog {
+    /// Prolog introduction text.
+    pub prolog: String,
+    /// Dialog for each analyzed clip.
+    pub clips: Vec<ClipDialog>,
+    /// Epilog outro text.
+    pub epilog: String,
+    /// YouTube video description.
+    pub youtube_description: String,
+}
+
+/// Data specific to a GenerateDialog node.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
+pub struct GenerateDialogData {
+    /// Current generation status.
+    pub generation_status: GenerationStatus,
+    /// Generated dialog output (None until generation complete).
+    pub generated_dialog: Option<GeneratedDialog>,
+}
+
+/// Data specific to a TextView node.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
+pub struct TextViewData {
+    // Marker type - resolves text from upstream at render time
+}
+
 /// The type-specific data for a node.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "type")]
@@ -386,6 +438,8 @@ pub enum NodeData {
     Viewer(ViewerData),
     Selector(SelectorData),
     StillPreview(StillPreviewData),
+    GenerateDialog(GenerateDialogData),
+    TextView(TextViewData),
 }
 
 impl NodeData {
@@ -397,6 +451,8 @@ impl NodeData {
             NodeData::Viewer(_) => "Viewer",
             NodeData::Selector(_) => "Selector",
             NodeData::StillPreview(_) => "Still Preview",
+            NodeData::GenerateDialog(_) => "Generate Dialog",
+            NodeData::TextView(_) => "Text View",
         }
     }
 }
@@ -482,6 +538,32 @@ impl Node {
             data: NodeData::StillPreview(StillPreviewData::default()),
             inputs: vec![Connector::input("still_in", 80.0)],
             outputs: vec![Connector::output("still_out", 80.0)],
+            z_index: 0,
+        }
+    }
+
+    /// Creates a new GenerateDialog node at the given position.
+    pub fn new_generate_dialog(position: Position) -> Self {
+        Self {
+            id: Uuid::new_v4(),
+            position,
+            size: Size::new(240.0, 140.0),
+            data: NodeData::GenerateDialog(GenerateDialogData::default()),
+            inputs: vec![Connector::input("stills_in", 70.0)],
+            outputs: vec![Connector::output("text_out", 70.0)],
+            z_index: 0,
+        }
+    }
+
+    /// Creates a new TextView node at the given position.
+    pub fn new_text_view(position: Position) -> Self {
+        Self {
+            id: Uuid::new_v4(),
+            position,
+            size: Size::new(280.0, 200.0),
+            data: NodeData::TextView(TextViewData::default()),
+            inputs: vec![Connector::input("text_in", 100.0)],
+            outputs: Vec::new(),
             z_index: 0,
         }
     }

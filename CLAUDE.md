@@ -2,6 +2,17 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## BEFORE STARTING ANY WORK
+
+**ALWAYS read README.md first** and consider ALL linked documentation before making changes:
+
+- `docs/adding-nodes-guidelines.md` - **REQUIRED** when adding new node types (9-step checklist)
+- `docs/compliance-checklist.md` - **REQUIRED** rules that cannot be violated
+- `docs/physical-design.md` - **REQUIRED** crate dependencies and coupling rules
+- `docs/process.md` - TDD workflow and pre-commit requirements
+- `docs/ARCHITECTURE.md` - System design patterns to follow
+- `docs/STATUS.md` - Current project state and recent changes
+
 ## CRITICAL RULES (READ FIRST)
 
 These rules are NON-NEGOTIABLE. Violating them wastes time and increases tech debt:
@@ -120,3 +131,39 @@ When requested, perform a **checkpoint**: run tests, fix linting, format code, u
 - Use inline format args: `format!("{name}")` not `format!("{}", name)`
 - Module docs use `//!`, item docs use `///`
 - Maximum 3 TODOs per file, never commit FIXMEs
+
+## Tech Debt Ratcheting
+
+**Principle**: The count of `sw-checklist` failures and warnings must monotonically decrease over time. They should never go up.
+
+**Tracking**:
+- Current counts are recorded in `docs/tech-debt-baseline.md`
+- A test in `components/utilities/tests/checklist_test.rs` verifies counts don't exceed baseline
+- Each component tracks its own FAIL/WARN counts
+
+**Rules**:
+1. **Never increase counts** - If adding code would increase FAIL or WARN, refactor first
+2. **Actively decrease every commit** - Each commit MUST reduce at least one FAIL or WARN to avoid infinite postponement
+3. **Update baseline** - After reducing counts, update the baseline document and script
+4. **Block merges** - PRs that increase counts should be rejected
+
+**Goal**: All components should reach 0 FAIL and 0 WARN. Features should not increase tech debt.
+
+**Pre-commit requirement**: Before each commit, fix at least one sw-checklist issue. This ensures steady progress toward zero debt.
+
+**Current Baseline** (update this as counts decrease):
+| Component | FAIL | WARN | Notes |
+|-----------|------|------|-------|
+| frontend  | 6    | 18   | Needs crate split for module count |
+| cli       | 3    | 7    | state.rs still needs splitting |
+| rest      | 0    | 0    | Clean |
+| crud      | 0    | 2    | Minor warnings |
+| agent     | 0    | 2    | Minor warnings |
+| server    | 0    | 1    | Minor warnings |
+| shared    | 0    | 0    | Clean |
+| nodes     | 2    | 0    | Needs refactoring |
+| project   | 1    | 0    | Needs refactoring |
+| ffmpeg    | 1    | 4    | Needs refactoring |
+| **TOTAL** | **13** | **35** | **Cannot increase** |
+
+**Script**: Run `./scripts/check-tech-debt.sh` to verify counts don't exceed baseline.

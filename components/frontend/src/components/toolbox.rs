@@ -4,8 +4,8 @@ use yew::prelude::*;
 
 use crate::state::{AppAction, AppStateContext};
 use yt_rs_shared::{
-    NodeData, Position, SelectorData, StillPreviewData, StillSamplerData, VideoInputData,
-    ViewerData,
+    GenerateDialogData, NodeData, Position, SelectorData, StillPreviewData, StillSamplerData,
+    TextViewData, VideoInputData, ViewerData,
 };
 
 /// The toolbox sidebar component.
@@ -43,6 +43,8 @@ fn render_palette(state: &AppStateContext) -> Html {
             {render_node_item("I", "Selector", "Select a still", create_selector_callback(state))}
             {render_node_item("T", "Still Preview", "View still image", create_preview_callback(state))}
             {render_node_item("P", "Viewer", "Play video", create_viewer_callback(state))}
+            {render_node_item("G", "Generate Dialog", "AI dialog generation", create_generate_callback(state))}
+            {render_node_item("X", "Text View", "Display text output", create_text_view_callback(state))}
         </div>
     }
 }
@@ -106,6 +108,26 @@ fn create_viewer_callback(state: &AppStateContext) -> Callback<MouseEvent> {
         state.dispatch(AppAction::CreateNode(
             NodeData::Viewer(ViewerData::default()),
             Position::new(700.0, 100.0),
+        ));
+    })
+}
+
+fn create_generate_callback(state: &AppStateContext) -> Callback<MouseEvent> {
+    let state = state.clone();
+    Callback::from(move |_| {
+        state.dispatch(AppAction::CreateNode(
+            NodeData::GenerateDialog(GenerateDialogData::default()),
+            Position::new(700.0, 250.0),
+        ));
+    })
+}
+
+fn create_text_view_callback(state: &AppStateContext) -> Callback<MouseEvent> {
+    let state = state.clone();
+    Callback::from(move |_| {
+        state.dispatch(AppAction::CreateNode(
+            NodeData::TextView(TextViewData::default()),
+            Position::new(950.0, 250.0),
         ));
     })
 }

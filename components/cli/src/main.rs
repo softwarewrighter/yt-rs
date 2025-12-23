@@ -15,6 +15,7 @@ use tower_http::cors::{Any, CorsLayer};
 use tower_http::services::ServeDir;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
+use yt_rs_cli::config::AppConfig;
 use yt_rs_cli::routes::{ShutdownState, create_router};
 use yt_rs_cli::state::AppState;
 
@@ -68,6 +69,10 @@ pub struct Args {
     #[arg(short, long, default_value = "3000", global = true)]
     pub port: u16,
 
+    /// Path to configuration file.
+    #[arg(short, long, default_value = "./config.toml", global = true)]
+    pub config_file: PathBuf,
+
     #[command(subcommand)]
     pub command: Option<Command>,
 }
@@ -116,16 +121,21 @@ async fn main() -> anyhow::Result<()> {
         Some(Command::Serve {
             data_dir,
             static_dir,
-        }) => serve(args.port, data_dir, static_dir).await,
+        }) => serve(args.port, args.config_file, data_dir, static_dir).await,
         None => {
             // Default to serve with default paths
-            serve(args.port, PathBuf::from("./data"), PathBuf::from("./dist")).await
+            serve(
+                args.port,
+                args.config_file,
+                PathBuf::from("./data"),
+                PathBuf::from("./dist"),
+            )
+            .await
         }
     }
 }
 
-async fn serve(port: u16, data_dir: PathBuf, static_dir: PathBuf) -> anyhow::Result<()> {
-    // Initialize tracing
+fn init_tracing() {
     tracing_subscriber::registry()
         .with(tracing_subscriber::fmt::layer())
         .with(
@@ -133,19 +143,33 @@ async fn serve(port: u16, data_dir: PathBuf, static_dir: PathBuf) -> anyhow::Res
                 .unwrap_or_else(|_| "yt_rs_backend=debug,tower_http=debug".into()),
         )
         .init();
+}
 
-    // Ensure data directory exists
+fn load_config(path: &PathBuf) -> AppConfig {
+    AppConfig::load(path).unwrap_or_else(|e| {
+        tracing::warn!("Failed to load config from {path:?}: {e}");
+        AppConfig::default()
+    })
+}
+
+async fn serve(
+    port: u16,
+    config_file: PathBuf,
+    data_dir: PathBuf,
+    static_dir: PathBuf,
+) -> anyhow::Result<()> {
+    init_tracing();
+    let config = load_config(&config_file);
     std::fs::create_dir_all(&data_dir)?;
 
-    tracing::info!("Starting yt-rs server on port {}", port);
-    tracing::info!("Data directory: {:?}", data_dir);
-    tracing::info!("Static files: {:?}", static_dir);
+    tracing::info!("Starting yt-rs server on port {port}");
+    tracing::info!("Data directory: {data_dir:?}");
+    tracing::info!("Static files: {static_dir:?}");
 
-    let state = AppState::new(data_dir);
+    let state = AppState::new(data_dir, config);
     let shutdown = ShutdownState::default();
     let shutdown_signal = shutdown.clone();
 
-    // Build router
     let app = create_router(state, shutdown)
         .nest_service("/", ServeDir::new(&static_dir))
         .layer(
@@ -157,7 +181,7 @@ async fn serve(port: u16, data_dir: PathBuf, static_dir: PathBuf) -> anyhow::Res
 
     let addr = SocketAddr::from(([0, 0, 0, 0], port));
     let listener = TcpListener::bind(addr).await?;
-    tracing::info!("Listening on http://{}", addr);
+    tracing::info!("Listening on http://{addr}");
 
     axum::serve(listener, app)
         .with_graceful_shutdown(async move { shutdown_signal.wait().await })

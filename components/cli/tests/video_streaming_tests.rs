@@ -3,13 +3,13 @@
 use std::path::PathBuf;
 use uuid::Uuid;
 
-// Re-export the AppState for testing
+use yt_rs_cli::config::AppConfig;
 use yt_rs_cli::state::AppState;
 
 #[tokio::test]
 async fn test_get_video_path_returns_none_for_missing_video() {
     let temp = tempfile::tempdir().unwrap();
-    let state = AppState::new(temp.path().to_path_buf());
+    let state = AppState::new(temp.path().to_path_buf(), AppConfig::default());
 
     let id = Uuid::new_v4();
     let result = state.get_video_path(id).await;
@@ -20,7 +20,7 @@ async fn test_get_video_path_returns_none_for_missing_video() {
 #[tokio::test]
 async fn test_get_video_path_finds_mp4_video() {
     let temp = tempfile::tempdir().unwrap();
-    let state = AppState::new(temp.path().to_path_buf());
+    let state = AppState::new(temp.path().to_path_buf(), AppConfig::default());
 
     // Create video directory and file
     let video_dir = temp.path().join("work/videos");
@@ -41,7 +41,7 @@ async fn test_get_video_path_finds_mp4_video() {
 #[tokio::test]
 async fn test_get_video_path_finds_mov_video() {
     let temp = tempfile::tempdir().unwrap();
-    let state = AppState::new(temp.path().to_path_buf());
+    let state = AppState::new(temp.path().to_path_buf(), AppConfig::default());
 
     let video_dir = temp.path().join("work/videos");
     tokio::fs::create_dir_all(&video_dir).await.unwrap();
@@ -61,7 +61,7 @@ async fn test_get_video_path_finds_mov_video() {
 #[tokio::test]
 async fn test_get_or_create_thumbnail_returns_error_for_missing_video() {
     let temp = tempfile::tempdir().unwrap();
-    let state = AppState::new(temp.path().to_path_buf());
+    let state = AppState::new(temp.path().to_path_buf(), AppConfig::default());
 
     let id = Uuid::new_v4();
     let result = state.get_or_create_thumbnail(id).await;
@@ -72,7 +72,7 @@ async fn test_get_or_create_thumbnail_returns_error_for_missing_video() {
 #[tokio::test]
 async fn test_get_or_create_thumbnail_returns_existing_thumbnail() {
     let temp = tempfile::tempdir().unwrap();
-    let state = AppState::new(temp.path().to_path_buf());
+    let state = AppState::new(temp.path().to_path_buf(), AppConfig::default());
 
     // Create thumbnail directory and file
     let thumb_dir = temp.path().join("work/thumbnails");
@@ -93,7 +93,7 @@ async fn test_get_or_create_thumbnail_returns_existing_thumbnail() {
 #[tokio::test]
 async fn test_save_video_creates_file() {
     let temp = tempfile::tempdir().unwrap();
-    let state = AppState::new(temp.path().to_path_buf());
+    let state = AppState::new(temp.path().to_path_buf(), AppConfig::default());
 
     let id = Uuid::new_v4();
     let data = b"test video content";
@@ -108,7 +108,7 @@ async fn test_save_video_creates_file() {
 #[tokio::test]
 async fn test_save_video_preserves_extension() {
     let temp = tempfile::tempdir().unwrap();
-    let state = AppState::new(temp.path().to_path_buf());
+    let state = AppState::new(temp.path().to_path_buf(), AppConfig::default());
 
     let id = Uuid::new_v4();
     let path = state.save_video(id, "video.mov", b"data").await.unwrap();
