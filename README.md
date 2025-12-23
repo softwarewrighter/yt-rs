@@ -33,15 +33,23 @@ A web-based node editor for video processing workflows, built with Rust.
 
 ```
 frontend/
-└── components/yew/  # Yew WASM application
+└── components/yew/           # Yew WASM application
 
 backend/
-├── components/cli/  # Axum REST server
-└── components/utilities/  # FFmpeg processing
+├── components/cli/           # Axum REST server with routes
+├── components/utilities/     # FFmpeg video processing
+└── components/agent/         # Ollama AI client
 
 shared/
-├── components/models/  # Node and project data types
-└── components/shared/  # Re-exports for cross-component use
+├── components/models/        # Node and project data types
+└── components/shared/        # Re-exports for cross-component use
+
+scripts/
+├── build-all.sh              # Build all components
+├── check-all.sh              # Run clippy on all
+├── format-all.sh             # Format all code
+├── run.sh                    # Start the server
+└── stop.sh                   # Stop the server
 ```
 
 ## Node Types
@@ -91,6 +99,7 @@ shared/
 |-------|------------|
 | Frontend | Yew 0.21 (Rust WASM) |
 | Backend | Axum 0.7 |
+| AI Integration | Ollama (llama3.2-vision) |
 | Video Processing | FFmpeg |
 | Build Tool | Trunk (WASM), Cargo (Rust) |
 
