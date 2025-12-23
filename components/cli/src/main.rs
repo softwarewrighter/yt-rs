@@ -9,13 +9,13 @@
 use std::net::SocketAddr;
 use std::path::PathBuf;
 
-use clap::Parser;
+use clap::{Parser, Subcommand};
 use tokio::net::TcpListener;
 use tower_http::cors::{Any, CorsLayer};
 use tower_http::services::ServeDir;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
-use yt_rs_cli::routes::create_router;
+use yt_rs_cli::routes::{ShutdownState, create_router};
 use yt_rs_cli::state::AppState;
 
 const AI_AGENT_INSTRUCTIONS: &str = r#"
@@ -64,17 +64,29 @@ managing video processing projects with a node-based workflow.";
 #[command(long_about = LONG_ABOUT)]
 #[command(after_help = AI_AGENT_INSTRUCTIONS)]
 pub struct Args {
-    /// Port to listen on.
-    #[arg(short, long, default_value = "3000")]
+    /// Port to connect to (for stop) or listen on (for serve).
+    #[arg(short, long, default_value = "3000", global = true)]
     pub port: u16,
 
-    /// Directory to store uploaded files and project data.
-    #[arg(short, long, default_value = "./data")]
-    pub data_dir: PathBuf,
+    #[command(subcommand)]
+    pub command: Option<Command>,
+}
 
-    /// Directory containing static frontend files.
-    #[arg(short, long, default_value = "./dist")]
-    pub static_dir: PathBuf,
+/// Subcommands for the CLI.
+#[derive(Subcommand, Debug)]
+pub enum Command {
+    /// Start the server (default if no subcommand given).
+    Serve {
+        /// Directory to store uploaded files and project data.
+        #[arg(short, long, default_value = "./data")]
+        data_dir: PathBuf,
+
+        /// Directory containing static frontend files.
+        #[arg(short, long, default_value = "./dist")]
+        static_dir: PathBuf,
+    },
+    /// Stop a running server.
+    Stop,
 }
 
 const fn version_string() -> &'static str {
@@ -97,6 +109,22 @@ const fn version_string() -> &'static str {
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
+    let args = Args::parse();
+
+    match args.command {
+        Some(Command::Stop) => stop_server(args.port).await,
+        Some(Command::Serve {
+            data_dir,
+            static_dir,
+        }) => serve(args.port, data_dir, static_dir).await,
+        None => {
+            // Default to serve with default paths
+            serve(args.port, PathBuf::from("./data"), PathBuf::from("./dist")).await
+        }
+    }
+}
+
+async fn serve(port: u16, data_dir: PathBuf, static_dir: PathBuf) -> anyhow::Result<()> {
     // Initialize tracing
     tracing_subscriber::registry()
         .with(tracing_subscriber::fmt::layer())
@@ -106,20 +134,20 @@ async fn main() -> anyhow::Result<()> {
         )
         .init();
 
-    let args = Args::parse();
-
     // Ensure data directory exists
-    std::fs::create_dir_all(&args.data_dir)?;
+    std::fs::create_dir_all(&data_dir)?;
 
-    tracing::info!("Starting yt-rs server on port {}", args.port);
-    tracing::info!("Data directory: {:?}", args.data_dir);
-    tracing::info!("Static files: {:?}", args.static_dir);
+    tracing::info!("Starting yt-rs server on port {}", port);
+    tracing::info!("Data directory: {:?}", data_dir);
+    tracing::info!("Static files: {:?}", static_dir);
 
-    let state = AppState::new(args.data_dir.clone());
+    let state = AppState::new(data_dir);
+    let shutdown = ShutdownState::default();
+    let shutdown_signal = shutdown.clone();
 
     // Build router
-    let app = create_router(state)
-        .nest_service("/", ServeDir::new(&args.static_dir))
+    let app = create_router(state, shutdown)
+        .nest_service("/", ServeDir::new(&static_dir))
         .layer(
             CorsLayer::new()
                 .allow_origin(Any)
@@ -127,11 +155,39 @@ async fn main() -> anyhow::Result<()> {
                 .allow_headers(Any),
         );
 
-    let addr = SocketAddr::from(([0, 0, 0, 0], args.port));
+    let addr = SocketAddr::from(([0, 0, 0, 0], port));
     let listener = TcpListener::bind(addr).await?;
     tracing::info!("Listening on http://{}", addr);
 
-    axum::serve(listener, app).await?;
+    axum::serve(listener, app)
+        .with_graceful_shutdown(async move { shutdown_signal.wait().await })
+        .await?;
 
+    tracing::info!("Server shut down gracefully");
     Ok(())
+}
+
+async fn stop_server(port: u16) -> anyhow::Result<()> {
+    let url = format!("http://localhost:{}/api/v1/shutdown", port);
+    println!("Sending shutdown request to {}...", url);
+
+    let client = reqwest::Client::new();
+    match client.post(&url).send().await {
+        Ok(response) => {
+            if response.status().is_success() {
+                println!("Server shutdown initiated successfully.");
+                Ok(())
+            } else {
+                anyhow::bail!("Server returned error: {}", response.status());
+            }
+        }
+        Err(e) => {
+            if e.is_connect() {
+                println!("No server running on port {} (connection refused).", port);
+                Ok(())
+            } else {
+                anyhow::bail!("Failed to connect: {}", e);
+            }
+        }
+    }
 }

@@ -92,7 +92,10 @@ impl AppState {
                 self.just_dragged = true;
             }
             ClearJustDragged => self.just_dragged = false,
-            OpenDialog(id) => self.open_dialog = Some(id),
+            OpenDialog(id) => {
+                self.open_dialog = Some(id);
+                self.dragging = None; // Clear drag state when opening dialog
+            }
             CloseDialog => self.open_dialog = None,
             StartConnection(n, c, p) => {
                 self.pending_connection = Some(PendingConnection::new(n, c, p))

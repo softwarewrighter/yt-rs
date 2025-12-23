@@ -51,41 +51,66 @@ yt-rs is a web-based node editor for video processing workflows. The system cons
 ```
 yt-rs/
 ├── components/             # Self-contained Rust components
-│   ├── shared/             # Shared types (frontend + backend)
-│   │   ├── Cargo.toml      # Standalone package
-│   │   └── src/
-│   │       ├── lib.rs
-│   │       └── models/
-│   │           ├── node.rs
-│   │           ├── connection.rs
-│   │           ├── canvas.rs
-│   │           └── project.rs
+│   ├── models/             # Data type definitions
+│   │   └── crates/
+│   │       ├── nodes/      # Node, Connector, NodeData types
+│   │       │   ├── src/lib.rs
+│   │       │   └── tests/  # Node type tests
+│   │       └── project/    # Project, graph resolution
+│   │           ├── src/
+│   │           │   ├── lib.rs
+│   │           │   └── graph.rs
+│   │           └── tests/  # Graph resolution tests
+│   │
+│   ├── shared/             # Re-exports for cross-component use
+│   │   └── src/lib.rs      # Re-exports from nodes/project
+│   │
+│   ├── utilities/          # Utility crates
+│   │   └── crates/
+│   │       └── ffmpeg/     # FFmpeg subprocess wrapper
 │   │
 │   ├── cli/                # Axum REST server CLI
-│   │   ├── Cargo.toml      # Standalone package
+│   │   ├── Cargo.toml
 │   │   └── src/
-│   │       ├── main.rs     # CLI entry point
-│   │       ├── state.rs
+│   │       ├── main.rs     # CLI entry (serve/stop subcommands)
+│   │       ├── lib.rs
+│   │       ├── state.rs    # Server state
 │   │       └── routes/
+│   │           ├── mod.rs
+│   │           ├── health.rs
+│   │           ├── projects.rs
+│   │           ├── videos.rs
+│   │           └── shutdown.rs
 │   │
 │   └── frontend/           # Yew WASM application
-│       ├── Cargo.toml      # Standalone package
+│       ├── Cargo.toml
 │       ├── Trunk.toml
 │       ├── index.html
 │       ├── styles.css
 │       └── src/
 │           ├── main.rs
 │           ├── app.rs
-│           ├── state.rs
+│           ├── state.rs    # Frontend state (use_reducer)
 │           └── components/
+│               ├── mod.rs
+│               ├── toolbox.rs
+│               ├── dialog.rs
+│               ├── nodes.rs
+│               └── canvas/
+│                   ├── mod.rs
+│                   ├── component.rs
+│                   ├── callbacks.rs
+│                   └── connections.rs
 │
-├── scripts/                # Build scripts
+├── scripts/                # Build and run scripts
 │   ├── build-all.sh        # Build all components
 │   ├── check-all.sh        # Run clippy on all
 │   ├── format-all.sh       # Format all
-│   └── run.sh              # Run CLI server
+│   ├── run.sh              # Start CLI server
+│   └── stop.sh             # Stop CLI server
 │
-├── work/                   # Per-project binary files (gitignored)
+├── data/                   # Runtime data (gitignored)
+├── dist/                   # Built frontend (gitignored)
 ├── docs/                   # Documentation
 └── README.md
 ```
@@ -130,32 +155,80 @@ yt-rs/
 11. StillSamplerNode updates with output connectors
 ```
 
+## Node Types
+
+| Node | Purpose | Inputs | Outputs |
+|------|---------|--------|---------|
+| VideoInput | Upload and store video files | - | video_out |
+| StillSampler | Extract stills at configurable intervals | video_in | stills_out |
+| Viewer | Play uploaded video with controls | video_in | - |
+| Selector | Select one still from array | stills_in | selected_out, array_out |
+| StillPreview | Display selected still image | still_in | still_out |
+
+### Node Data Structures
+
+```rust
+// Each node type has associated data
+pub enum NodeData {
+    VideoInput(VideoInputData),      // file_id, file_name, duration
+    StillSampler(StillSamplerData),  // interval_seconds, extracted_stills
+    Viewer(ViewerData),              // thumbnail_path
+    Selector(SelectorData),          // selected_index
+    StillPreview(StillPreviewData),  // marker type
+}
+```
+
+### Connection Resolution
+
+Nodes use **pull-based resolution** - they look up their connected sources at render time:
+
+```rust
+// Example: Finding connected video for a Viewer node
+fn find_connected_video(node: &Node, state: &AppStateContext) -> Option<VideoInputData> {
+    let input_conn = node.inputs.first()?;
+    let connection = state.connections.values()
+        .find(|c| c.to_node == node.id && c.to_connector == input_conn.id)?;
+    let source_node = state.nodes.get(&connection.from_node)?;
+    match &source_node.data {
+        NodeData::VideoInput(data) => Some(data.clone()),
+        _ => None,
+    }
+}
+```
+
 ## Key Components
 
 ### Frontend
 
 | Component | Responsibility |
 |-----------|----------------|
-| `Workspace` | Infinite canvas with pan/zoom transforms |
-| `Viewport` | Scroll management and visible area calculation |
-| `Canvas` | SVG container, drop zone for nodes |
-| `BaseNode` | Draggable node wrapper with connectors |
-| `VideoInputNode` | File upload UI, video metadata display |
-| `StillSamplerNode` | Interval input, dynamic output connectors |
-| `BezierConnection` | SVG path rendering with control handles |
-| `Toolbox` | Collapsible sidebar with node palette |
-| `Connector` | Input/output connection points |
+| `Canvas` | SVG container with pan/zoom, node rendering |
+| `nodes.rs` | Node SVG rendering, connector placement |
+| `dialog.rs` | Node configuration dialogs |
+| `toolbox.rs` | Collapsible sidebar with node palette |
+| `connections.rs` | Bezier curve rendering |
+| `callbacks.rs` | Mouse and keyboard event handlers |
 
 ### Backend
 
 | Component | Responsibility |
 |-----------|----------------|
-| `main.rs` | CLI parsing, server startup |
-| `routes/` | API endpoint definitions |
-| `handlers/` | Request handling logic |
-| `services/video.rs` | FFmpeg integration |
-| `services/storage.rs` | File system operations |
-| `state.rs` | Application state (projects, files) |
+| `main.rs` | CLI parsing (serve/stop), server startup |
+| `routes/health.rs` | Health check endpoint |
+| `routes/videos.rs` | Video upload, streaming, still extraction |
+| `routes/projects.rs` | Project CRUD operations |
+| `routes/shutdown.rs` | Graceful server shutdown |
+| `state.rs` | Application state, thumbnail caching |
+
+### API Endpoints
+
+| Method | Path | Purpose |
+|--------|------|---------|
+| GET | `/api/v1/health` | Health check |
+| POST | `/api/v1/videos/upload` | Upload video file (max 500MB) |
+| GET | `/api/v1/videos/:id/stream` | Stream video file |
+| GET | `/api/v1/stills/:video_id/:timestamp` | Get still at timestamp |
+| POST | `/api/v1/shutdown` | Graceful server shutdown |
 
 ## Technology Stack
 

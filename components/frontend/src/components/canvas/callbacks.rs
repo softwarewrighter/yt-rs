@@ -5,6 +5,17 @@ use yew::prelude::*;
 use crate::state::{AppAction, AppStateContext};
 use yt_rs_shared::Position;
 
+/// Gets the mouse position relative to the SVG canvas using clientX/clientY.
+fn get_svg_position(e: &MouseEvent) -> Option<Position> {
+    let window = web_sys::window()?;
+    let document = window.document()?;
+    let svg = document.query_selector("svg.canvas").ok()??;
+    let rect = svg.get_bounding_client_rect();
+    let x = e.client_x() as f64 - rect.left();
+    let y = e.client_y() as f64 - rect.top();
+    Some(Position::new(x, y))
+}
+
 pub(super) struct CanvasCallbacks {
     pub view_box: String,
     pub transform: String,
@@ -55,9 +66,10 @@ fn create_mouse_move_callback(state: &AppStateContext) -> Callback<MouseEvent> {
     let state = state.clone();
     Callback::from(move |e: MouseEvent| {
         if state.dragging.is_some() {
-            let pos = Position::new(e.offset_x() as f64, e.offset_y() as f64);
-            let canvas_pos = state.canvas.screen_to_canvas(pos);
-            state.dispatch(AppAction::UpdateDrag(canvas_pos));
+            if let Some(pos) = get_svg_position(&e) {
+                let canvas_pos = state.canvas.screen_to_canvas(pos);
+                state.dispatch(AppAction::UpdateDrag(canvas_pos));
+            }
         } else if e.buttons() == 4 {
             let dx = e.movement_x() as f64;
             let dy = e.movement_y() as f64;
@@ -66,8 +78,9 @@ fn create_mouse_move_callback(state: &AppStateContext) -> Callback<MouseEvent> {
                 state.canvas.pan_offset.y + dy,
             );
             state.dispatch(AppAction::SetPan(new_pan));
-        } else if state.pending_connection.is_some() {
-            let pos = Position::new(e.offset_x() as f64, e.offset_y() as f64);
+        } else if state.pending_connection.is_some()
+            && let Some(pos) = get_svg_position(&e)
+        {
             let canvas_pos = state.canvas.screen_to_canvas(pos);
             state.dispatch(AppAction::UpdatePendingConnection(canvas_pos));
         }

@@ -197,7 +197,39 @@ fn render_still_sampler_dialog(
     let connected_video = find_connected_video(node, state);
     let video_duration = connected_video.as_ref().and_then(|v| v.duration_seconds);
 
-    let state_update = state.clone();
+    let update_interval = {
+        let state = state.clone();
+        move |new_interval: u32| {
+            let clamped = new_interval.clamp(1, 300);
+            let mut new_data = StillSamplerData {
+                interval_seconds: clamped,
+                ..Default::default()
+            };
+            if let Some(duration) = video_duration {
+                new_data.generate_stills(duration);
+            }
+            state.dispatch(AppAction::UpdateNodeData(
+                node_id,
+                NodeData::StillSampler(new_data),
+            ));
+        }
+    };
+
+    let update_dec = update_interval.clone();
+    let on_decrement = Callback::from(move |_| {
+        if interval > 1 {
+            update_dec(interval - 1);
+        }
+    });
+
+    let update_inc = update_interval.clone();
+    let on_increment = Callback::from(move |_| {
+        if interval < 300 {
+            update_inc(interval + 1);
+        }
+    });
+
+    let state_change = state.clone();
     let on_interval_change = Callback::from(move |e: Event| {
         let input: HtmlInputElement = e.target().unwrap().dyn_into().unwrap();
         if let Ok(new_interval) = input.value().parse::<u32>() {
@@ -206,11 +238,10 @@ fn render_still_sampler_dialog(
                 interval_seconds: clamped,
                 ..Default::default()
             };
-            // Regenerate stills if we have a connected video
             if let Some(duration) = video_duration {
                 new_data.generate_stills(duration);
             }
-            state_update.dispatch(AppAction::UpdateNodeData(
+            state_change.dispatch(AppAction::UpdateNodeData(
                 node_id,
                 NodeData::StillSampler(new_data),
             ));
@@ -222,13 +253,17 @@ fn render_still_sampler_dialog(
             <h3>{"Still Sampler"}</h3>
             <div class="dialog-row">
                 <label>{"Sample Interval (seconds):"}</label>
-                <input
-                    type="number"
-                    min="1"
-                    max="300"
-                    value={interval.to_string()}
-                    onchange={on_interval_change}
-                />
+                <div class="number-input-group">
+                    <button class="number-btn" onclick={on_decrement} disabled={interval <= 1}>{"-"}</button>
+                    <input
+                        type="number"
+                        min="1"
+                        max="300"
+                        value={interval.to_string()}
+                        onchange={on_interval_change}
+                    />
+                    <button class="number-btn" onclick={on_increment} disabled={interval >= 300}>{"+"}</button>
+                </div>
             </div>
             <div class="dialog-row">
                 <label>{"Stills extracted:"}</label>
@@ -312,15 +347,41 @@ fn render_selector_dialog(node: &Node, data: &SelectorData, state: &AppStateCont
     let node_id = node.id;
     let current_index = data.selected_index;
     let stills_count = find_stills_count(node, state);
+    let max_index = stills_count.saturating_sub(1);
+
+    let state_dec = state.clone();
+    let on_decrement = Callback::from(move |_| {
+        if current_index > 0 {
+            state_dec.dispatch(AppAction::UpdateNodeData(
+                node_id,
+                NodeData::Selector(SelectorData {
+                    selected_index: current_index - 1,
+                }),
+            ));
+        }
+    });
+
+    let state_inc = state.clone();
+    let on_increment = Callback::from(move |_| {
+        if current_index < max_index {
+            state_inc.dispatch(AppAction::UpdateNodeData(
+                node_id,
+                NodeData::Selector(SelectorData {
+                    selected_index: current_index + 1,
+                }),
+            ));
+        }
+    });
 
     let state_update = state.clone();
     let on_index_change = Callback::from(move |e: Event| {
         let input: HtmlInputElement = e.target().unwrap().dyn_into().unwrap();
         if let Ok(idx) = input.value().parse::<usize>() {
+            let clamped = idx.min(max_index);
             state_update.dispatch(AppAction::UpdateNodeData(
                 node_id,
                 NodeData::Selector(SelectorData {
-                    selected_index: idx,
+                    selected_index: clamped,
                 }),
             ));
         }
@@ -335,14 +396,18 @@ fn render_selector_dialog(node: &Node, data: &SelectorData, state: &AppStateCont
             </div>
             <div class="dialog-row">
                 <label>{"Selected Index:"}</label>
-                <input
-                    type="number"
-                    min="0"
-                    max={stills_count.saturating_sub(1).to_string()}
-                    value={current_index.to_string()}
-                    onchange={on_index_change}
-                    disabled={stills_count == 0}
-                />
+                <div class="number-input-group">
+                    <button class="number-btn" onclick={on_decrement} disabled={stills_count == 0 || current_index == 0}>{"-"}</button>
+                    <input
+                        type="number"
+                        min="0"
+                        max={max_index.to_string()}
+                        value={current_index.to_string()}
+                        onchange={on_index_change}
+                        disabled={stills_count == 0}
+                    />
+                    <button class="number-btn" onclick={on_increment} disabled={stills_count == 0 || current_index >= max_index}>{"+"}</button>
+                </div>
             </div>
             if stills_count > 0 && current_index < stills_count {
                 <div class="dialog-row hint">

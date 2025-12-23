@@ -1,9 +1,32 @@
 //! Node rendering components.
 
+use wasm_bindgen::JsCast;
 use yew::prelude::*;
 
 use crate::state::{AppAction, AppStateContext};
 use yt_rs_shared::{ConnectorPosition, Node, NodeData, Position, VideoInputData};
+
+/// Focuses the canvas container to enable keyboard events.
+fn focus_canvas() {
+    if let Some(window) = web_sys::window()
+        && let Some(document) = window.document()
+        && let Some(element) = document.query_selector(".canvas-container").ok().flatten()
+        && let Some(html_element) = element.dyn_ref::<web_sys::HtmlElement>()
+    {
+        let _ = html_element.focus();
+    }
+}
+
+/// Gets the mouse position relative to the SVG canvas.
+fn get_svg_position(e: &MouseEvent) -> Option<Position> {
+    let window = web_sys::window()?;
+    let document = window.document()?;
+    let svg = document.query_selector("svg.canvas").ok()??;
+    let rect = svg.get_bounding_client_rect();
+    let x = e.client_x() as f64 - rect.left();
+    let y = e.client_y() as f64 - rect.top();
+    Some(Position::new(x, y))
+}
 
 /// Renders a single node with its connectors as SVG.
 pub fn render_node(node: &Node, state: &AppStateContext) -> Html {
@@ -16,8 +39,14 @@ pub fn render_node(node: &Node, state: &AppStateContext) -> Html {
     let on_mousedown = Callback::from(move |e: MouseEvent| {
         e.stop_propagation();
         e.prevent_default();
-        let offset = Position::new(e.offset_x() as f64, e.offset_y() as f64);
-        state_drag.dispatch(AppAction::StartDrag(node_id, offset));
+        focus_canvas(); // Ensure keyboard events work
+        // Get click position relative to SVG and convert to canvas coordinates
+        if let Some(screen_pos) = get_svg_position(&e) {
+            let canvas_pos = state_drag.canvas.screen_to_canvas(screen_pos);
+            // Offset is where we clicked within the node (canvas_pos - node_pos)
+            let offset = Position::new(canvas_pos.x - node_pos.x, canvas_pos.y - node_pos.y);
+            state_drag.dispatch(AppAction::StartDrag(node_id, offset));
+        }
     });
 
     let state_dbl = state.clone();

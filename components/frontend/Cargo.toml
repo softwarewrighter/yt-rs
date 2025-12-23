@@ -12,7 +12,7 @@ yt-rs-shared = { path = "../shared" }
 yew = { version = "0.21", features = ["csr"] }
 gloo = "0.11"
 gloo-net = "0.5"
-web-sys = { version = "0.3", features = ["FormData", "File", "FileList", "Blob"] }
+web-sys = { version = "0.3", features = ["FormData", "File", "FileList", "Blob", "Element", "DomRect"] }
 wasm-bindgen = "0.2"
 wasm-bindgen-futures = "0.4"
 
