@@ -2,7 +2,7 @@
 
 A web-based node editor for video processing workflows, built with Rust.
 
-![Screenshot](./images/screenshot.png?ts=1766453026321)
+![Screenshot](./images/screenshot.png?ts=1766467254000)
 
 ## Features
 
@@ -11,6 +11,8 @@ A web-based node editor for video processing workflows, built with Rust.
 - **Still extraction** - Sample frames at configurable intervals
 - **Selector node** - Pick individual stills from extracted frames
 - **Still preview** - View selected frames with timestamps
+- **AI dialog generation** - Analyze stills with Ollama vision models
+- **Text output** - View generated prolog, clips, epilog, and YouTube description
 
 ## Quick Start
 
@@ -30,12 +32,16 @@ A web-based node editor for video processing workflows, built with Rust.
 ## Architecture
 
 ```
-components/
-├── models/          # Node and project data types
-├── shared/          # Re-exports for cross-component use
-├── utilities/       # FFmpeg and other utilities
-├── cli/             # Axum REST server
-└── frontend/        # Yew WASM application
+frontend/
+└── components/yew/  # Yew WASM application
+
+backend/
+├── components/cli/  # Axum REST server
+└── components/utilities/  # FFmpeg processing
+
+shared/
+├── components/models/  # Node and project data types
+└── components/shared/  # Re-exports for cross-component use
 ```
 
 ## Node Types
@@ -47,6 +53,8 @@ components/
 | Viewer | Play uploaded video |
 | Selector | Select one still from array |
 | StillPreview | Display selected still |
+| GenerateDialog | AI vision analysis of stills |
+| TextView | Display generated text output |
 
 ## Scripts
 

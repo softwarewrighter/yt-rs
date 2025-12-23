@@ -1,6 +1,6 @@
 # Project Status
 
-## Current Phase: 6 - Still Sampler (In Progress)
+## Current Phase: 8 - AI Integration (In Progress)
 
 ## Overall Progress
 
@@ -13,19 +13,45 @@ Phase 4: Connections       [█████████████████�
 Phase 5: Backend API       [████████████████████] 100%
 Phase 6: Still Sampler     [████████████████████] 100%
 Phase 7: Polish            [████████░░░░░░░░░░░░]  40%
+Phase 8: AI Integration    [████░░░░░░░░░░░░░░░░]  20%
+Phase 9: Audio Pipeline    [░░░░░░░░░░░░░░░░░░░░]   0%
+Phase 10: Video Assembly   [░░░░░░░░░░░░░░░░░░░░]   0%
 ```
 
 ## Implemented Node Types
 
-| Node | Purpose | Inputs | Outputs |
-|------|---------|--------|---------|
-| VideoInput | Upload video files | - | video_out |
-| StillSampler | Extract stills at intervals | video_in | stills_out |
-| Viewer | Play uploaded video | video_in | - |
-| Selector | Select one still from array | stills_in | selected_out, array_out |
-| StillPreview | Display selected still | still_in | still_out |
+| Node | Purpose | Inputs | Outputs | Status |
+|------|---------|--------|---------|--------|
+| VideoInput | Upload video files | - | video_out | ✅ Done |
+| StillSampler | Extract stills at intervals | video_in | stills_out | ✅ Done |
+| Viewer | Play uploaded video | video_in | - | ✅ Done |
+| Selector | Select one still from array | stills_in | selected_out, array_out | ✅ Done |
+| StillPreview | Display selected still | still_in | still_out | ✅ Done |
+| GenerateDialog | AI vision analysis of stills | stills_in | text_out | ✅ Done |
+| TextView | Display generated text | text_in | - | ✅ Done |
+
+## Planned Node Types
+
+| Node | Purpose | Inputs | Outputs | Phase |
+|------|---------|--------|---------|-------|
+| ExtractCommentary | Whisper STT for audio | video_in | transcript_out | 9 |
+| EditDialog | LLM text editing/cleanup | text_in | text_out | 9 |
+| Narration | Vibe Voice TTS | text_in | audio_out | 9 |
+| LipSync | Muse Talk avatar animation | avatar_in, audio_in | video_out | 10 |
+| Transparency | rembg background removal | video_in | video_out | 10 |
+| Composite | ffmpeg overlay compositing | base_in, overlay_in | video_out | 10 |
+| Combine | Final video assembly | clips_in[] | video_out | 10 |
 
 ## Recent Updates
+
+### 2024-12-23 - Dialog Generation & Project Restructure
+- Restructured project: frontend/, backend/, shared/ top-level directories
+- Added GenerateDialog node with Ollama vision model integration
+- Added TextView node displaying prolog, clips, epilog, YouTube description
+- Added context text input for video-specific generation hints
+- Configurable system prompt in config.toml
+- YouTube description auto-generated from clip analysis
+- Changed default port from 3000 to 1400
 
 ### 2024-12-22 - UI Polish
 - Fixed double-click drag bug (nodes no longer jump on double-click)
@@ -86,25 +112,46 @@ Phase 7: Polish            [████████░░░░░░░░░�
 ## Architecture
 
 ```
-components/
-├── models/          # Node and project data types
-│   └── crates/
-│       ├── nodes/   # Node, Connector, NodeData types
-│       └── project/ # Project, graph resolution
-├── shared/          # Re-exports for cross-component use
-├── utilities/       # FFmpeg and other utilities
-├── cli/             # Axum REST server (CLI)
-│   └── routes/      # API endpoints (health, projects, videos, shutdown)
-└── frontend/        # Yew WASM app
-    └── components/  # UI (canvas, toolbox, dialog, nodes)
+frontend/
+└── components/yew/crates/app/    # Yew WASM application
+
+backend/
+├── components/cli/               # Axum REST server
+│   └── routes/                   # API endpoints (generate, videos, projects)
+├── components/utilities/         # FFmpeg, rembg processing
+└── components/agent/             # Ollama client
+
+shared/
+└── components/
+    ├── models/                   # Node and project data types
+    └── shared/                   # Re-exports for cross-component use
 
 scripts/
-├── build-all.sh     # Build all components
-├── check-all.sh     # Run clippy on all
-├── format-all.sh    # Format all
-├── run.sh           # Run CLI server
-└── stop.sh          # Stop CLI server
+├── build-all.sh                  # Build all components
+├── check-all.sh                  # Run clippy on all
+├── format-all.sh                 # Format all
+├── run.sh                        # Run CLI server
+└── stop.sh                       # Stop CLI server
 ```
+
+## Remote Server Integration
+
+The system coordinates multiple AI/ML services running on homelab servers:
+
+| Service | Purpose | Server |
+|---------|---------|--------|
+| Ollama (llama3.2-vision) | Still image analysis | big72 |
+| Whisper | Speech-to-text | TBD |
+| Vibe Voice | Text-to-speech (cloned voice) | TBD |
+| Muse Talk | Lip-sync avatar animation | TBD |
+
+## Queue System (Planned)
+
+To prevent GPU VRAM exhaustion and maximize throughput:
+- Per-server request queues with configurable concurrency limits
+- Priority scheduling for time-sensitive operations
+- Multi-project support: multiple videos can process simultaneously
+- Resource utilization monitoring and backpressure
 
 ## Links
 

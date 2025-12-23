@@ -2,6 +2,7 @@
 
 mod generate;
 mod health;
+mod ollama;
 mod projects;
 mod shutdown;
 mod videos;
