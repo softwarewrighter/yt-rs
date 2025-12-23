@@ -36,9 +36,12 @@ frontend/
 └── components/yew/           # Yew WASM application
 
 backend/
-├── components/cli/           # Axum REST server with routes
-├── components/utilities/     # FFmpeg video processing
-└── components/agent/         # Ollama AI client
+├── components/cli/           # Thin CLI (args, run, stop)
+├── components/server/        # Axum HTTP server
+├── components/rest/          # REST API route handlers
+├── components/crud/          # Data persistence operations
+├── components/agent/         # Ollama AI client
+└── components/utilities/     # FFmpeg video processing
 
 shared/
 ├── components/models/        # Node and project data types
