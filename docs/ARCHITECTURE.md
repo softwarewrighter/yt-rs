@@ -1,8 +1,14 @@
 # Architecture
 
-## System Overview
+## Design Principles
 
-yt-rs is a web-based node editor for video processing workflows. The system consists of two main components:
+1. **Clear frontend/backend separation** - Directory structure reflects execution context
+2. **Thin CLI** - Just args parsing, delegates to server/stop commands
+3. **Loose coupling** - Components interact via interfaces, not implementations
+4. **Builders pattern** - Builders wire up components, know dependencies
+5. **Adapters/facades** - Between high-level and low-level code
+
+## System Overview
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
@@ -54,69 +60,225 @@ See `docs/physical-design.md` for the authoritative crate dependency graph and c
 
 ```
 yt-rs/
-├── components/             # Self-contained Rust components
-│   ├── models/             # Data type definitions
-│   │   └── crates/
-│   │       ├── nodes/      # Node, Connector, NodeData types
-│   │       │   ├── src/lib.rs
-│   │       │   └── tests/  # Node type tests
-│   │       └── project/    # Project, graph resolution
-│   │           ├── src/
-│   │           │   ├── lib.rs
-│   │           │   └── graph.rs
-│   │           └── tests/  # Graph resolution tests
-│   │
-│   ├── shared/             # Re-exports for cross-component use
-│   │   └── src/lib.rs      # Re-exports from nodes/project
-│   │
-│   ├── utilities/          # Utility crates
-│   │   └── crates/
-│   │       └── ffmpeg/     # FFmpeg subprocess wrapper
-│   │
-│   ├── cli/                # Axum REST server CLI
-│   │   ├── Cargo.toml
-│   │   └── src/
-│   │       ├── main.rs     # CLI entry (serve/stop subcommands)
-│   │       ├── lib.rs
-│   │       ├── state.rs    # Server state
-│   │       └── routes/
-│   │           ├── mod.rs
-│   │           ├── health.rs
-│   │           ├── projects.rs
-│   │           ├── videos.rs
-│   │           └── shutdown.rs
-│   │
-│   └── frontend/           # Yew WASM application
-│       ├── Cargo.toml
-│       ├── Trunk.toml
-│       ├── index.html
-│       ├── styles.css
-│       └── src/
-│           ├── main.rs
-│           ├── app.rs
-│           ├── state.rs    # Frontend state (use_reducer)
-│           └── components/
-│               ├── mod.rs
-│               ├── toolbox.rs
-│               ├── dialog.rs
-│               ├── nodes.rs
-│               └── canvas/
-│                   ├── mod.rs
-│                   ├── component.rs
-│                   ├── callbacks.rs
-│                   └── connections.rs
+├── frontend/                    # All browser-side code
+│   └── components/
+│       ├── app/                 # Yew WASM application
+│       │   └── crates/
+│       │       └── app/
+│       │           ├── src/
+│       │           │   ├── lib.rs
+│       │           │   ├── main.rs
+│       │           │   └── components/
+│       │           ├── index.html
+│       │           └── styles.css
+│       │
+│       ├── state/               # Frontend state (use_reducer)
+│       │   └── crates/
+│       │       └── fe-state/
+│       │
+│       └── macros/              # Frontend-specific macros (future)
+│           └── crates/
+│               └── fe-macros/
 │
-├── scripts/                # Build and run scripts
-│   ├── build-all.sh        # Build all components
-│   ├── check-all.sh        # Run clippy on all
-│   ├── format-all.sh       # Format all
-│   ├── run.sh              # Start CLI server
-│   └── stop.sh             # Stop CLI server
+├── backend/                     # All server-side code
+│   └── components/
+│       ├── cli/                 # Thin CLI wrapper
+│       │   └── crates/
+│       │       └── cli/
+│       │           └── src/
+│       │               ├── lib.rs
+│       │               ├── main.rs  # Args only: help, version, config
+│       │               ├── run.rs   # Delegates to server
+│       │               └── stop.rs  # Posts shutdown to running server
+│       │
+│       ├── server/              # Axum server component
+│       │   └── crates/
+│       │       └── server/
+│       │           └── src/
+│       │               ├── lib.rs
+│       │               ├── builder.rs  # ServerBuilder wires up routes
+│       │               └── runner.rs   # Server run loop
+│       │
+│       ├── routes/              # Route handlers (REST layer)
+│       │   └── crates/
+│       │       └── rest/
+│       │           └── src/
+│       │               ├── lib.rs
+│       │               ├── health.rs
+│       │               ├── videos.rs
+│       │               ├── projects.rs
+│       │               └── generate.rs
+│       │
+│       ├── state/               # Backend state (AppState)
+│       │   └── crates/
+│       │       └── be-state/
+│       │
+│       ├── crud/                # Database/storage operations
+│       │   └── crates/
+│       │       └── crud/
+│       │
+│       └── macros/              # Backend-specific macros (future)
+│           └── crates/
+│               └── be-macros/
 │
-├── data/                   # Runtime data (gitignored)
-├── dist/                   # Built frontend (gitignored)
-├── docs/                   # Documentation
+├── shared/                      # Code shared between frontend/backend
+│   └── components/
+│       ├── models/              # Data type definitions
+│       │   └── crates/
+│       │       ├── nodes/       # Node, Connector, NodeData types
+│       │       └── project/     # Project, graph resolution
+│       │
+│       ├── config/              # Configuration types and loading
+│       │   └── crates/
+│       │       └── config/
+│       │           └── src/
+│       │               ├── lib.rs
+│       │               └── builder.rs  # ConfigBuilder
+│       │
+│       └── shared/              # Re-exports for convenience
+│           └── crates/
+│               └── shared/
+│
+├── utilities/                   # Utility crates (context-independent)
+│   └── components/
+│       └── ffmpeg/
+│           └── crates/
+│               └── ffmpeg/
+│
+├── scripts/                     # Build and run scripts
+│   ├── build-all.sh
+│   ├── check-all.sh
+│   ├── format-all.sh
+│   ├── run.sh
+│   └── stop.sh
+│
+├── data/                        # Runtime data (gitignored)
+├── docs/                        # Documentation
 └── README.md
+```
+
+## Component Responsibilities
+
+### CLI (Thin Shell)
+```
+Responsibility: Parse args, delegate to run/stop
+Does NOT: Know about routes, handlers, state internals
+Depends on: config (for reading config file), server (to start)
+```
+
+### Config
+```
+Responsibility: Load and validate configuration
+Provides: ConfigBuilder for constructing config from args/file/env
+Used by: CLI (to build config), Server (to configure), Stop (to find port)
+```
+
+### Server
+```
+Responsibility: Wire up and run the HTTP server
+Provides: ServerBuilder that accepts config and returns configured server
+Depends on: routes, state, config
+Does NOT: Know CLI args or how config was built
+```
+
+### Routes (REST Layer)
+```
+Responsibility: HTTP request/response handling
+Provides: Route registration, request validation, response formatting
+Depends on: crud (for data operations), shared models
+Does NOT: Implement business logic or direct file access
+```
+
+### CRUD
+```
+Responsibility: Data persistence operations
+Provides: Repository pattern for projects, videos, stills
+Depends on: shared models, file system
+Does NOT: Know about HTTP or routes
+```
+
+### State (Backend)
+```
+Responsibility: Runtime server state
+Provides: AppState with video cache, thumbnail cache
+Depends on: ffmpeg (for extraction)
+Does NOT: Know about frontend state or routes
+```
+
+### State (Frontend)
+```
+Responsibility: UI state management
+Provides: use_reducer context, actions, state
+Depends on: shared models
+Does NOT: Know about backend implementation
+```
+
+## Builder Pattern
+
+Builders wire up components without tight coupling:
+
+```rust
+// CLI main.rs - thin shell
+fn main() {
+    let args = Args::parse();
+
+    match args.command {
+        Command::Run => {
+            let config = ConfigBuilder::new()
+                .with_file(args.config_file)
+                .with_verbosity(args.verbosity)
+                .build();
+
+            run::start(config);  // Delegates to server
+        }
+        Command::Stop => {
+            let config = ConfigBuilder::new()
+                .with_file(args.config_file)
+                .build();
+
+            stop::shutdown(config);  // Posts to running server
+        }
+    }
+}
+
+// server/builder.rs - wires up server
+impl ServerBuilder {
+    pub fn new(config: AppConfig) -> Self { ... }
+
+    pub fn build(self) -> Server {
+        let state = StateBuilder::new(&self.config).build();
+        let routes = RouteBuilder::new()
+            .with_health()
+            .with_videos()
+            .with_projects()
+            .build();
+
+        Server::new(routes, state)
+    }
+}
+```
+
+## Adapter/Facade Layers
+
+High-level code uses facades to interact with low-level services:
+
+```
+┌─────────────────────────────────────────────┐
+│  Routes (high-level HTTP handlers)          │
+└──────────────────┬──────────────────────────┘
+                   │ uses
+                   ▼
+┌─────────────────────────────────────────────┐
+│  VideoFacade (business operations)          │
+│  - upload_video(file) -> VideoMeta          │
+│  - extract_stills(id, interval) -> [Still]  │
+│  - get_thumbnail(id) -> Image               │
+└──────────────────┬──────────────────────────┘
+                   │ delegates to
+                   ▼
+┌─────────────────────────────────────────────┐
+│  CRUD + FFmpeg (low-level operations)       │
+└─────────────────────────────────────────────┘
 ```
 
 ## Data Flow
@@ -144,21 +306,6 @@ yt-rs/
 8. Bezier curve rendered
 ```
 
-### Video Processing Flow
-```
-1. User uploads video via VideoInputNode
-2. File uploaded to /api/v1/files/upload
-3. File stored, metadata returned
-4. Node updated with file reference
-5. User connects to StillSamplerNode
-6. Connection triggers extraction job
-7. POST to /api/v1/processing/extract-stills
-8. Backend spawns ffmpeg subprocess
-9. Frontend polls job status
-10. On completion, stills metadata returned
-11. StillSamplerNode updates with output connectors
-```
-
 ## Node Types
 
 | Node | Purpose | Inputs | Outputs |
@@ -168,63 +315,10 @@ yt-rs/
 | Viewer | Play uploaded video with controls | video_in | - |
 | Selector | Select one still from array | stills_in | selected_out, array_out |
 | StillPreview | Display selected still image | still_in | still_out |
+| GenerateDialog | Generate dialog from stills via Ollama | stills_in | text_out |
+| TextView | Display generated text | text_in | - |
 
-### Node Data Structures
-
-```rust
-// Each node type has associated data
-pub enum NodeData {
-    VideoInput(VideoInputData),      // file_id, file_name, duration
-    StillSampler(StillSamplerData),  // interval_seconds, extracted_stills
-    Viewer(ViewerData),              // thumbnail_path
-    Selector(SelectorData),          // selected_index
-    StillPreview(StillPreviewData),  // marker type
-}
-```
-
-### Connection Resolution
-
-Nodes use **pull-based resolution** - they look up their connected sources at render time:
-
-```rust
-// Example: Finding connected video for a Viewer node
-fn find_connected_video(node: &Node, state: &AppStateContext) -> Option<VideoInputData> {
-    let input_conn = node.inputs.first()?;
-    let connection = state.connections.values()
-        .find(|c| c.to_node == node.id && c.to_connector == input_conn.id)?;
-    let source_node = state.nodes.get(&connection.from_node)?;
-    match &source_node.data {
-        NodeData::VideoInput(data) => Some(data.clone()),
-        _ => None,
-    }
-}
-```
-
-## Key Components
-
-### Frontend
-
-| Component | Responsibility |
-|-----------|----------------|
-| `Canvas` | SVG container with pan/zoom, node rendering |
-| `nodes.rs` | Node SVG rendering, connector placement |
-| `dialog.rs` | Node configuration dialogs |
-| `toolbox.rs` | Collapsible sidebar with node palette |
-| `connections.rs` | Bezier curve rendering |
-| `callbacks.rs` | Mouse and keyboard event handlers |
-
-### Backend
-
-| Component | Responsibility |
-|-----------|----------------|
-| `main.rs` | CLI parsing (serve/stop), server startup |
-| `routes/health.rs` | Health check endpoint |
-| `routes/videos.rs` | Video upload, streaming, still extraction |
-| `routes/projects.rs` | Project CRUD operations |
-| `routes/shutdown.rs` | Graceful server shutdown |
-| `state.rs` | Application state, thumbnail caching |
-
-### API Endpoints
+## API Endpoints
 
 | Method | Path | Purpose |
 |--------|------|---------|
@@ -232,6 +326,9 @@ fn find_connected_video(node: &Node, state: &AppStateContext) -> Option<VideoInp
 | POST | `/api/v1/videos/upload` | Upload video file (max 500MB) |
 | GET | `/api/v1/videos/:id/stream` | Stream video file |
 | GET | `/api/v1/stills/:video_id/:timestamp` | Get still at timestamp |
+| POST | `/api/v1/generate/dialog` | Generate dialog from stills |
+| POST | `/api/v1/workspace/save` | Save current workspace |
+| GET | `/api/v1/workspace/restore` | Restore saved workspace |
 | POST | `/api/v1/shutdown` | Graceful server shutdown |
 
 ## Technology Stack
@@ -247,74 +344,7 @@ fn find_connected_video(node: &Node, state: &AppStateContext) -> Option<VideoInp
 | Video Processing | ffmpeg-sidecar | FFmpeg subprocess management |
 | Serialization | Serde | JSON serialization |
 | CLI | Clap | Command-line argument parsing |
-
-## Rendering Strategy
-
-The canvas uses SVG for rendering:
-
-```
-<svg viewBox="0 0 {width} {height}">
-  <g transform="translate({panX}, {panY}) scale({zoom})">
-    <!-- Grid pattern -->
-    <rect fill="url(#grid)" />
-
-    <!-- Connections layer (rendered first, behind nodes) -->
-    <g class="connections">
-      <path d="M... C..." />  <!-- Bezier curves -->
-    </g>
-
-    <!-- Nodes layer -->
-    <g class="nodes">
-      <foreignObject>
-        <!-- HTML node content -->
-      </foreignObject>
-    </g>
-  </g>
-</svg>
-```
-
-### Coordinate Systems
-
-1. **Screen coordinates**: Pixel position in browser window
-2. **Canvas coordinates**: Position in the infinite canvas space
-3. **Transform**: `canvas = (screen - pan) / zoom`
-
-## State Management
-
-Uses Yew's `use_reducer` with Context for shared state:
-
-```rust
-pub struct AppState {
-    pub canvas: CanvasState,
-    pub nodes: HashMap<Uuid, Node>,
-    pub connections: HashMap<Uuid, Connection>,
-    pub selection: Selection,
-    pub pending_connection: Option<PendingConnection>,
-}
-
-pub enum AppAction {
-    // Canvas
-    SetPan(Position),
-    SetZoom(f64),
-
-    // Nodes
-    CreateNode(NodeData, Position),
-    UpdateNode(Uuid, NodeData),
-    DeleteNode(Uuid),
-    MoveNode(Uuid, Position),
-
-    // Connections
-    StartConnection(Uuid, Uuid),
-    UpdatePendingConnection(Position),
-    CompleteConnection(Uuid, Uuid),
-    CancelConnection,
-    DeleteConnection(Uuid),
-
-    // Selection
-    Select(Uuid),
-    Deselect,
-}
-```
+| Config | toml | Configuration file format |
 
 ## Security Considerations
 

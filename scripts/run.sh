@@ -3,7 +3,6 @@ set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(dirname "$SCRIPT_DIR")"
-COMPONENTS_DIR="$ROOT_DIR/components"
 DATA_DIR="$ROOT_DIR/data"
 DIST_DIR="$ROOT_DIR/dist"
 
@@ -14,7 +13,7 @@ if [ "$1" = "--release" ]; then
     shift
 fi
 
-BINARY="$COMPONENTS_DIR/cli/target/$BUILD_TYPE/yt-rs"
+BINARY="$ROOT_DIR/backend/components/cli/target/$BUILD_TYPE/yt-rs"
 
 if [ ! -f "$BINARY" ]; then
     echo "Binary not found at $BINARY"

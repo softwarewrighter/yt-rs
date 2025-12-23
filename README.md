@@ -21,7 +21,7 @@ A web-based node editor for video processing workflows, built with Rust.
 # Start the server
 ./scripts/run.sh
 
-# Open http://localhost:3000 in your browser
+# Open http://localhost:1400 in your browser
 
 # Stop the server
 ./scripts/stop.sh

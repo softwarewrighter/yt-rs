@@ -6,7 +6,7 @@
 
 [generate_dialog]
 # Ollama server hostname
-ollama_host = "localhost"
+ollama_host = "big72"
 
 # Ollama server port
 ollama_port = 11434
@@ -15,7 +15,6 @@ ollama_port = 11434
 vision_model = "llama3.2-vision:11b"
 
 # System prompt for the vision model - customize for your project type
-# This helps the model understand what kind of content it's analyzing
 system_prompt = """
 You are an expert in analyzing screencast stills showing a developer
 interacting with Claude Code CLI Coding Agent in a terminal working on

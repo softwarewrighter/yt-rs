@@ -2,106 +2,177 @@
 
 This document defines the crate structure, dependency graph, and coupling rules for yt-rs. Changes to dependencies should be reviewed against this design.
 
+## Top-Level Directory Structure
+
+```
+yt-rs/
+├── frontend/     # All browser-side code (compiles to WASM)
+├── backend/      # All server-side code (native binary)
+├── shared/       # Code shared between frontend and backend
+├── utilities/    # Context-independent utilities
+├── scripts/      # Build, check, run scripts
+├── docs/         # Documentation
+└── data/         # Runtime data (gitignored)
+```
+
 ## Dependency Principles
 
 1. **Unidirectional dependencies**: Lower layers never depend on higher layers
-2. **CLI is thin**: CLI only parses args and delegates to server
-3. **Server orchestrates**: Server composes routers from rest and uses crud for data
-4. **Shared types flow down**: Models/shared only contain data types, no behavior
-5. **Utilities are independent**: ffmpeg, agent have no dependencies on domain code
+2. **Frontend/backend isolation**: Frontend and backend never directly depend on each other
+3. **Shared types flow down**: shared/ only contains data types and pure functions
+4. **CLI is thin**: CLI only parses args and delegates to server
+5. **Builders wire components**: Builders know dependencies, components don't
+6. **Utilities are independent**: ffmpeg has no dependencies on domain code
 
 ## Layer Architecture
 
 ```
-                    ┌─────────────┐
-                    │    CLI      │  (arg parsing only)
-                    └──────┬──────┘
-                           │
-                    ┌──────▼──────┐
-                    │   Server    │  (orchestration, startup)
-                    └──────┬──────┘
-                           │
-              ┌────────────┼────────────┐
-              │            │            │
-       ┌──────▼──────┐ ┌───▼───┐ ┌──────▼──────┐
-       │    Rest     │ │ Crud  │ │   Agent     │
-       │  (routes)   │ │(data) │ │ (vision AI) │
-       └──────┬──────┘ └───┬───┘ └──────┬──────┘
-              │            │            │
-              └────────────┼────────────┘
-                           │
-                    ┌──────▼──────┐
-                    │   Shared    │  (re-exports types)
-                    └──────┬──────┘
-                           │
-       ┌───────────────────┼───────────────────┐
-       │                   │                   │
-┌──────▼──────┐    ┌───────▼───────┐   ┌──────▼──────┐
-│   Nodes     │    │   Project     │   │   FFmpeg    │
-│  (types)    │    │  (types)      │   │ (utility)   │
-└─────────────┘    └───────────────┘   └─────────────┘
+                         ┌─────────────┐
+                         │    CLI      │  (arg parsing only)
+                         └──────┬──────┘
+                                │ delegates to
+                         ┌──────▼──────┐
+                         │   Server    │  (orchestration)
+                         └──────┬──────┘
+                                │ wires up
+           ┌────────────────────┼────────────────────┐
+           │                    │                    │
+    ┌──────▼──────┐      ┌──────▼──────┐     ┌──────▼──────┐
+    │    Rest     │      │  BE-State   │     │   Agent     │
+    │  (routes)   │      │ (app state) │     │ (Ollama AI) │
+    └──────┬──────┘      └──────┬──────┘     └──────┬──────┘
+           │                    │                    │
+           └────────────────────┼────────────────────┘
+                                │
+                         ┌──────▼──────┐
+                         │    CRUD     │  (data persistence)
+                         └──────┬──────┘
+                                │
+                         ┌──────▼──────┐
+                         │   Shared    │  (re-exports types)
+                         └──────┬──────┘
+                                │
+           ┌────────────────────┼────────────────────┐
+           │                    │                    │
+    ┌──────▼──────┐      ┌──────▼──────┐     ┌──────▼──────┐
+    │   Nodes     │      │   Project   │     │   Config    │
+    │  (types)    │      │   (types)   │     │  (loading)  │
+    └─────────────┘      └─────────────┘     └─────────────┘
+
+                    UTILITIES (no domain deps)
+           ┌─────────────────────────────────────────┐
+           │                FFmpeg                    │
+           └─────────────────────────────────────────┘
+
+
+                    FRONTEND (WASM context)
+           ┌─────────────────────────────────────────┐
+           │     App → FE-State → Components         │
+           │              │                          │
+           │              ▼                          │
+           │           Shared                        │
+           └─────────────────────────────────────────┘
+```
+
+## Directory Structure
+
+```
+yt-rs/
+├── frontend/
+│   └── components/
+│       ├── app/                    # Main Yew application
+│       │   └── crates/app/
+│       │       ├── src/
+│       │       │   ├── lib.rs
+│       │       │   ├── main.rs
+│       │       │   └── components/
+│       │       ├── index.html
+│       │       └── styles.css
+│       │
+│       └── state/                  # Frontend state (use_reducer)
+│           └── crates/fe-state/
+│
+├── backend/
+│   └── components/
+│       ├── cli/                    # Thin CLI wrapper
+│       │   └── crates/cli/
+│       │       └── src/
+│       │           ├── lib.rs
+│       │           ├── main.rs     # Args: help, version, config
+│       │           ├── run.rs      # Delegates to server
+│       │           └── stop.rs     # Posts shutdown
+│       │
+│       ├── server/                 # Axum server orchestration
+│       │   └── crates/server/
+│       │       └── src/
+│       │           ├── lib.rs
+│       │           ├── builder.rs  # ServerBuilder
+│       │           └── runner.rs
+│       │
+│       ├── rest/                   # Route handlers
+│       │   └── crates/rest/
+│       │       └── src/
+│       │           ├── lib.rs
+│       │           ├── health.rs
+│       │           ├── videos.rs
+│       │           ├── projects.rs
+│       │           └── generate.rs
+│       │
+│       ├── state/                  # Backend AppState
+│       │   └── crates/be-state/
+│       │
+│       ├── crud/                   # Data persistence
+│       │   └── crates/crud/
+│       │
+│       └── agent/                  # AI/Ollama integration
+│           └── crates/agent/
+│
+├── shared/
+│   └── components/
+│       ├── models/
+│       │   └── crates/
+│       │       ├── nodes/          # Node, Connector, NodeData
+│       │       └── project/        # Project, graph resolution
+│       │
+│       ├── config/                 # Configuration types
+│       │   └── crates/config/
+│       │       └── src/
+│       │           ├── lib.rs
+│       │           └── builder.rs
+│       │
+│       └── shared/                 # Re-exports
+│           └── crates/shared/
+│
+└── utilities/
+    └── components/
+        └── ffmpeg/
+            └── crates/ffmpeg/
 ```
 
 ## Crate Dependency Graph
-
-### Current State (with issues noted)
-
-```
-cli
-├── yt-rs-shared
-├── yt-rs-ffmpeg
-├── [routes module - should move to rest]
-└── [state module - should move to server or app]
-
-server
-├── axum, tokio, tower-http
-└── (no domain deps - correct)
-
-rest
-├── yt-rs-server
-└── axum, uuid
-
-crud
-├── yt-rs-shared
-└── async-trait, tokio
-
-agent
-├── yt-rs-ffmpeg
-└── base64, reqwest, serde
-
-shared
-├── yt-rs-nodes
-└── yt-rs-project
-
-nodes
-└── serde, uuid
-
-project
-├── yt-rs-nodes
-└── serde, chrono, uuid
-
-ffmpeg
-└── (external deps only)
-```
 
 ### Target State
 
 ```
 cli                          # THIN: arg parsing only
+├── yt-rs-config            # for loading config file
 └── yt-rs-server            # delegates to server
 
 server                       # ORCHESTRATION
 ├── yt-rs-rest              # composes routes
-├── yt-rs-crud              # data access
-├── yt-rs-agent             # AI integration
-├── yt-rs-ffmpeg            # video processing
-├── axum, tokio             # infrastructure
-└── (NO direct yt-rs-shared - goes through rest/crud)
+├── yt-rs-be-state          # app state
+├── yt-rs-config            # configuration
+└── axum, tokio             # infrastructure
 
 rest                         # ROUTE HANDLERS
 ├── yt-rs-shared            # for request/response types
-├── yt-rs-crud              # for data access in handlers
+├── yt-rs-crud              # for data access
 └── axum
+
+be-state                     # BACKEND STATE
+├── yt-rs-shared            # domain types
+├── yt-rs-ffmpeg            # for extraction
+└── tokio
 
 crud                         # DATA ACCESS
 ├── yt-rs-shared            # domain types
@@ -110,6 +181,9 @@ crud                         # DATA ACCESS
 agent                        # AI INTEGRATION
 ├── yt-rs-ffmpeg            # for image extraction
 └── reqwest                 # for Ollama API
+
+config                       # CONFIGURATION
+└── toml, serde
 
 shared                       # TYPE RE-EXPORTS (no behavior)
 ├── yt-rs-nodes
@@ -124,6 +198,15 @@ project                      # PROJECT TYPES
 
 ffmpeg                       # UTILITY (no domain deps)
 └── tokio
+
+fe-state                     # FRONTEND STATE (WASM)
+├── yt-rs-shared
+└── yew
+
+app                          # FRONTEND APP (WASM)
+├── yt-rs-fe-state
+├── yt-rs-shared
+└── yew, gloo
 ```
 
 ## Coupling Rules
@@ -132,25 +215,32 @@ ffmpeg                       # UTILITY (no domain deps)
 
 | Crate | May depend on |
 |-------|---------------|
-| cli | server only |
-| server | rest, crud, agent, ffmpeg, shared |
+| cli | config, server only |
+| server | rest, be-state, config |
 | rest | shared, crud |
+| be-state | shared, ffmpeg |
 | crud | shared |
 | agent | ffmpeg only |
+| config | (none - types only) |
 | shared | nodes, project |
 | nodes | (none) |
 | project | nodes |
 | ffmpeg | (none) |
+| fe-state | shared |
+| app | fe-state, shared |
 
 ### What SHOULD NOT couple
 
 | Crate | Must NOT depend on |
 |-------|-------------------|
-| cli | crud, rest, shared, nodes, project |
+| cli | crud, rest, shared, nodes, project, be-state |
+| server | nodes, project (use shared) |
 | nodes | project, shared, crud, rest |
 | project | shared, crud, rest |
 | ffmpeg | shared, crud, rest, nodes, project |
 | shared | crud, rest, server |
+| frontend/* | backend/* |
+| backend/* | frontend/* |
 
 ## Module Limits (per sw-checklist)
 
@@ -159,102 +249,92 @@ ffmpeg                       # UTILITY (no domain deps)
 | Functions per module | 7 max | 5 warning |
 | Lines per function | 50 max | 25 warning |
 | Modules per crate | 7 max | N/A |
-| Lines per file | 350 max | N/A |
+| Lines per file | 500 max | N/A |
 
 ## File Responsibilities
 
-### CLI (components/cli)
+### CLI (backend/components/cli)
 
 ```
 src/
-├── main.rs      # parse args, call server::run()
-└── lib.rs       # re-export for tests
+├── main.rs      # parse args, match command, delegate
+├── lib.rs       # re-export for tests
+├── run.rs       # build config, call server::run()
+└── stop.rs      # build config, post shutdown
 ```
 
 CLI should NOT contain:
-- Route handlers (move to rest)
-- State management (move to server or app)
-- Configuration loading (move to server)
+- Route handlers (belong in rest)
+- State management (belong in be-state)
+- Configuration types (belong in config)
 
-### Server (components/server)
-
-```
-src/
-├── lib.rs       # pub use exports
-├── config.rs    # ServerConfig struct
-├── runner.rs    # run() function
-├── shutdown.rs  # ShutdownSignal
-└── app.rs       # AppState, compose router (NEW)
-```
-
-Server SHOULD contain:
-- AppState struct and initialization
-- Router composition from rest routes
-- Configuration management
-
-### Rest (components/rest)
+### Server (backend/components/server)
 
 ```
 src/
 ├── lib.rs       # pub use exports
-├── router.rs    # create_router()
-├── health.rs    # health routes
-├── shutdown.rs  # shutdown routes
-├── projects.rs  # project CRUD routes (MOVE from cli)
-└── videos.rs    # video routes (MOVE from cli)
+├── builder.rs   # ServerBuilder wires up components
+└── runner.rs    # run() async function
 ```
 
-### Crud (components/crud)
+### Config (shared/components/config)
 
 ```
 src/
-├── lib.rs       # pub use exports
-├── store.rs     # FileStore struct
-├── project.rs   # ProjectStore trait
-├── video.rs     # VideoStore trait
-├── error.rs     # CrudError
-└── store/       # implementations
-    ├── project_impl.rs
-    └── video_impl.rs
+├── lib.rs       # AppConfig, GenerateDialogConfig, etc.
+└── builder.rs   # ConfigBuilder with file/env/default
 ```
 
-## Frontend Structure (components/frontend)
-
-Current: Single crate with many modules (exceeds 7 module limit)
-
-Target: Split into multiple crates
+### Rest (backend/components/rest)
 
 ```
-frontend/               # Main entry, app shell
-├── frontend-state/    # State management
-├── frontend-nodes/    # Node components
-├── frontend-dialogs/  # Dialog components
-├── frontend-canvas/   # Canvas component
-└── frontend-ui/       # Shared UI components
+src/
+├── lib.rs       # pub use, create_router()
+├── health.rs    # GET /health
+├── videos.rs    # video CRUD routes
+├── projects.rs  # project CRUD routes
+├── workspace.rs # save/restore routes
+└── generate.rs  # Ollama generation routes
+```
+
+### BE-State (backend/components/state)
+
+```
+src/
+├── lib.rs       # AppState struct
+├── video.rs     # video cache operations
+├── still.rs     # still extraction operations
+└── thumbnail.rs # thumbnail operations
 ```
 
 ## Migration Path
 
-### Phase 1: Server takes AppState
+### Phase 1: Restructure directories
 
-1. Move AppState from cli/state.rs to server/app.rs
-2. Server exposes create_app() that builds router with state
-3. CLI calls server::create_app() then server::run()
+1. Create frontend/, backend/, shared/ top-level dirs
+2. Move components/frontend → frontend/components/app
+3. Move components/cli → backend/components/cli
+4. Move components/models → shared/components/models
+5. Update all Cargo.toml paths
 
-### Phase 2: Routes move to Rest
+### Phase 2: Extract config
 
-1. Move cli/routes/projects.rs to rest/projects.rs
-2. Move cli/routes/videos.rs to rest/videos.rs
-3. Rest creates router with all domain routes
-4. Server composes rest router
+1. Create shared/components/config
+2. Move config types from cli to config
+3. Add ConfigBuilder
+4. Update cli to use config crate
 
-### Phase 3: Frontend crate split
+### Phase 3: Extract be-state
 
-1. Extract frontend-state crate
-2. Extract frontend-canvas crate
-3. Extract frontend-nodes crate
-4. Extract frontend-dialogs crate
-5. Main frontend composes all
+1. Create backend/components/state
+2. Move AppState from cli to be-state
+3. Update rest routes to use be-state
+
+### Phase 4: Thin CLI
+
+1. Create run.rs, stop.rs in cli
+2. Move server startup to run.rs
+3. CLI main.rs only parses args and delegates
 
 ## Validation
 
@@ -269,6 +349,10 @@ cargo tree --duplicates
 
 # Check tech debt
 ./scripts/check-tech-debt.sh
+
+# Verify frontend/backend isolation
+cargo tree -p yt-rs-frontend | grep -E "yt-rs-(cli|server|rest|crud)"
+# Should output nothing
 ```
 
 ## Anti-patterns to Avoid
@@ -278,3 +362,4 @@ cargo tree --duplicates
 3. **Leaky abstractions**: Handler knows storage details
 4. **Type leakage**: Internal types in public APIs
 5. **Tight coupling**: Changing one crate breaks many others
+6. **Context crossing**: Frontend depending on backend or vice versa

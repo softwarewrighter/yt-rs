@@ -126,7 +126,7 @@ impl ServerConfigBuilder {
     pub fn build(self) -> Result<ServerConfig, ConfigError> { ... }
 }
 
-// Usage: ServerConfigBuilder::new().port(3000).build()?
+// Usage: ServerConfigBuilder::new().port(1400).build()?
 ```
 
 ### Pure Functions

@@ -1,0 +1,45 @@
+[package]
+name = "yt-rs-cli"
+version = "0.1.0"
+edition = "2024"
+authors = ["Mike <mike@softwarewrighter.com>"]
+license = "MIT"
+description = "CLI server for yt-rs node editor"
+
+[lib]
+name = "yt_rs_cli"
+path = "src/lib.rs"
+
+[[bin]]
+name = "yt-rs"
+path = "src/main.rs"
+
+[dependencies]
+yt-rs-shared = { path = "../../../shared/components/shared" }
+yt-rs-ffmpeg = { path = "../utilities/components/ffmpeg/crates/ffmpeg" }
+
+axum = { version = "0.7", features = ["multipart", "macros"] }
+tokio = { version = "1.0", features = ["full"] }
+tokio-util = { version = "0.7", features = ["io"] }
+tower = "0.4"
+tower-http = { version = "0.5", features = ["fs", "cors", "trace"] }
+clap = { version = "4.0", features = ["derive"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+uuid = { version = "1.0", features = ["v4", "serde"] }
+chrono = { version = "0.4", features = ["serde"] }
+thiserror = "1.0"
+anyhow = "1.0"
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json"] }
+toml = "0.8"
+base64 = "0.22"
+
+[dev-dependencies]
+tempfile = "3.0"
+
+[build-dependencies]
+hostname = "0.4"
+chrono = "0.4"
