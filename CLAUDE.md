@@ -13,37 +13,30 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - `docs/ARCHITECTURE.md` - System design patterns to follow
 - `docs/STATUS.md` - Current project state and recent changes
 
-## CRITICAL RULES (READ FIRST)
+## CRITICAL RULES (NON-NEGOTIABLE)
 
-These rules are NON-NEGOTIABLE. Violating them wastes time and increases tech debt:
-
-1. **NEVER disable lint/clippy checks** - No `#[allow(...)]`, no `// noqa`, no suppressions
+1. **NEVER disable lint/clippy checks** - No `#[allow(...)]`, no suppressions. Fix the root cause.
 2. **NEVER add dead code** - If code is unused, do not add it. Add it when needed.
-3. **FIX warnings properly** - Remove unused code, fix the actual issue
-4. **Pre-commit = format + fix clippy + verify .gitignore + update docs**
+3. **No functions in lib.rs or mod.rs** - These files contain only module declarations and re-exports.
+4. **Pre-commit = format + clippy + tests + sw-checklist + update docs**
 
-When I say "do NOT disable checks" I mean it literally. Fix the root cause.
+## Project Structure
 
-## Project Overview
-
-yt-rs is a web-based node editor for video processing workflows.
-
-**Structure:**
 ```
-components/
-├── models/          # Graph data models (nested workspace)
-│   └── crates/
-│       ├── nodes/   # Node, Connection, Canvas types
-│       └── project/ # Project serialization
-├── shared/          # Re-exports from models
-├── cli/             # Axum REST server
-└── frontend/        # Yew/WASM app
+frontend/
+└── components/yew/           # Yew WASM application
 
-scripts/
-├── build-all.sh
-├── check-all.sh
-├── format-all.sh
-└── run.sh
+backend/
+├── components/cli/           # Thin CLI (args, run, stop)
+├── components/server/        # Axum HTTP server
+├── components/rest/          # REST API route handlers
+├── components/crud/          # Data persistence operations
+├── components/agent/         # Ollama AI client
+└── components/utilities/     # FFmpeg video processing
+
+shared/
+├── components/models/        # Node and project data types (nodes, project crates)
+└── components/shared/        # Re-exports for cross-component use
 ```
 
 ## Build Commands
@@ -52,47 +45,49 @@ scripts/
 # Build all components
 ./scripts/build-all.sh
 
-# Check all with clippy
+# Check all with clippy (zero warnings required)
 ./scripts/check-all.sh
 
 # Format all
 ./scripts/format-all.sh
 
-# Run CLI server
+# Run server (http://localhost:1400)
 ./scripts/run.sh
 
-# Build individual component
-cd components/<name> && cargo build
+# Stop server
+./scripts/stop.sh
 
-# Run tests per component
-cd components/<name> && cargo test
+# Check tech debt ratchet
+./scripts/check-tech-debt.sh
+
+# Build/test individual component
+cd frontend/components/yew && cargo build
+cd backend/components/cli && cargo test
 ```
 
 ## Pre-Commit Quality Process (Mandatory)
 
-All changes must pass this sequence before committing:
+Run this sequence before every commit:
 
-1. `cargo test` - ALL tests must pass
-2. `cargo clippy --all-targets --all-features -- -D warnings` - ZERO warnings
-3. `cargo fmt --all` - Format all code
-4. `markdown-checker -f "**/*.md"` - Validate markdown (ASCII-only)
-5. `sw-checklist` - Project requirements check
-6. Update docs/learnings.md if issues were found
-
-Never use `#[allow(...)]` to suppress clippy warnings. Fix them properly.
+1. `./scripts/format-all.sh` - Format all code
+2. `./scripts/check-all.sh` - Zero clippy warnings
+3. `cargo test` in each component - All tests pass
+4. `./scripts/check-tech-debt.sh` - Debt cannot increase
+5. Update docs if behavior changed
 
 ## Architecture
 
-Three-tier architecture with full-stack Rust:
+Three-tier full-stack Rust:
 
 ```
-Browser (Yew/WASM) <--REST--> Axum Backend <--> File System
+Browser (Yew/WASM) <--REST--> Axum Backend <--> File System + Ollama
 ```
 
 **Frontend State**: Yew `use_reducer` with Context for shared state (canvas, nodes, connections)
 
 **Backend Services**:
 - Video processing via ffmpeg-sidecar
+- AI vision analysis via Ollama client
 - File storage for uploads
 - JSON file persistence for projects
 
@@ -100,28 +95,10 @@ Browser (Yew/WASM) <--REST--> Axum Backend <--> File System
 
 ## Key Patterns
 
-- **Node Types**: VideoInputNode (file upload, output connector), StillSamplerNode (interval input, dynamic outputs)
+- **Node Types**: Each node has typed input/output connectors. Data flows through connections.
 - **Connections**: Bezier curves between connectors, rendered in SVG
 - **Data Flow**: UI action -> State reducer -> API call -> Backend persist -> State update
-
-## Development Process
-
-This project follows TDD (Red/Green/Refactor):
-1. Write failing test
-2. Implement minimal code to pass
-3. Refactor while keeping tests green
-
-When requested, perform a **checkpoint**: run tests, fix linting, format code, update docs, commit and push immediately.
-
-## Documentation
-
-- `docs/ARCHITECTURE.md` - System design and component responsibilities
-- `docs/PRD.md` - Product requirements and user stories
-- `docs/DESIGN.md` - Visual design, API specs, interaction flows
-- `docs/PLAN.md` - Implementation phases and checklist
-- `docs/STATUS.md` - Current progress and blockers
-- `docs/process.md` - Development workflow details
-- `docs/tools.md` - Available CLI tools in ~/.local/softwarewrighter/bin/
+- **TDD**: Write failing test first, then implement, then refactor
 
 ## Code Standards
 
@@ -132,38 +109,23 @@ When requested, perform a **checkpoint**: run tests, fix linting, format code, u
 - Module docs use `//!`, item docs use `///`
 - Maximum 3 TODOs per file, never commit FIXMEs
 
-## Tech Debt Ratcheting
+## Tech Debt Ratchet
 
-**Principle**: The count of `sw-checklist` failures and warnings must monotonically decrease over time. They should never go up.
+FAIL/WARN counts must monotonically decrease. Run `./scripts/check-tech-debt.sh` to verify.
 
-**Tracking**:
-- Current counts are recorded in `docs/tech-debt-baseline.md`
-- A test in `components/utilities/tests/checklist_test.rs` verifies counts don't exceed baseline
-- Each component tracks its own FAIL/WARN counts
+**Current Baseline** (from scripts/check-tech-debt.sh):
+| Component | FAIL | WARN |
+|-----------|------|------|
+| yew-app   | 9    | 18   |
+| cli       | 5    | 11   |
+| rest      | 0    | 0    |
+| crud      | 0    | 2    |
+| agent     | 0    | 2    |
+| server    | 0    | 1    |
+| shared    | 0    | 0    |
+| nodes     | 2    | 0    |
+| project   | 1    | 0    |
+| ffmpeg    | 1    | 4    |
+| **TOTAL** | **18** | **38** |
 
-**Rules**:
-1. **Never increase counts** - If adding code would increase FAIL or WARN, refactor first
-2. **Actively decrease every commit** - Each commit MUST reduce at least one FAIL or WARN to avoid infinite postponement
-3. **Update baseline** - After reducing counts, update the baseline document and script
-4. **Block merges** - PRs that increase counts should be rejected
-
-**Goal**: All components should reach 0 FAIL and 0 WARN. Features should not increase tech debt.
-
-**Pre-commit requirement**: Before each commit, fix at least one sw-checklist issue. This ensures steady progress toward zero debt.
-
-**Current Baseline** (update this as counts decrease):
-| Component | FAIL | WARN | Notes |
-|-----------|------|------|-------|
-| frontend  | 6    | 18   | Needs crate split for module count |
-| cli       | 3    | 7    | state.rs still needs splitting |
-| rest      | 0    | 0    | Clean |
-| crud      | 0    | 2    | Minor warnings |
-| agent     | 0    | 2    | Minor warnings |
-| server    | 0    | 1    | Minor warnings |
-| shared    | 0    | 0    | Clean |
-| nodes     | 2    | 0    | Needs refactoring |
-| project   | 1    | 0    | Needs refactoring |
-| ffmpeg    | 1    | 4    | Needs refactoring |
-| **TOTAL** | **13** | **35** | **Cannot increase** |
-
-**Script**: Run `./scripts/check-tech-debt.sh` to verify counts don't exceed baseline.
+New components MUST start at 0:0. Update baselines in `scripts/check-tech-debt.sh` only after reducing counts.

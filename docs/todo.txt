@@ -1,3 +1,22 @@
-- We need a way for the CLI to send a stop signal to the running server (so Claude can stop/restart the CLI with two commands: the new one in ./scripts/stop-server.sh)
+Phase 7: Polish (40%)
+- Better error display in UI
+- Retry logic for failed uploads
 
-- We need a way to save (and name) the current project, create a new (empty) project, and load a previously saved project
+Phase 8: AI Integration (20%)
+- Save/load workspace to JSON (project persistence)
+- Project management UI (save, name, create new, load)
+
+Phase 9: Audio Pipeline
+- ExtractCommentary node (Whisper STT for audio)
+- EditDialog node (LLM text editing/cleanup)
+- Narration node (Vibe Voice TTS with cloned voice)
+
+Phase 10: Video Assembly
+- LipSync node (Muse Talk avatar animation)
+- Transparency node (rembg background removal)
+- Composite node (ffmpeg overlay compositing)
+- Combine node (final video assembly)
+
+Infrastructure
+- Queue system for remote server requests (prevent GPU VRAM exhaustion)
+- Reduce tech debt (current: 18 FAIL, 38 WARN)
