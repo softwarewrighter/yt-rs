@@ -4,7 +4,7 @@ use std::path::PathBuf;
 use uuid::Uuid;
 
 use yt_rs_cli::config::AppConfig;
-use yt_rs_cli::state::AppState;
+use yt_rs_cli::state::{self, AppState};
 
 #[tokio::test]
 async fn test_get_video_path_returns_none_for_missing_video() {
@@ -12,7 +12,7 @@ async fn test_get_video_path_returns_none_for_missing_video() {
     let state = AppState::new(temp.path().to_path_buf(), AppConfig::default());
 
     let id = Uuid::new_v4();
-    let result = state.get_video_path(id).await;
+    let result = state::get_video_path(&state, id).await;
 
     assert!(result.is_none());
 }
@@ -32,7 +32,7 @@ async fn test_get_video_path_finds_mp4_video() {
         .await
         .unwrap();
 
-    let result = state.get_video_path(id).await;
+    let result = state::get_video_path(&state, id).await;
 
     assert!(result.is_some());
     assert_eq!(result.unwrap(), video_path);
@@ -52,7 +52,7 @@ async fn test_get_video_path_finds_mov_video() {
         .await
         .unwrap();
 
-    let result = state.get_video_path(id).await;
+    let result = state::get_video_path(&state, id).await;
 
     assert!(result.is_some());
     assert_eq!(result.unwrap(), video_path);
@@ -64,7 +64,7 @@ async fn test_get_or_create_thumbnail_returns_error_for_missing_video() {
     let state = AppState::new(temp.path().to_path_buf(), AppConfig::default());
 
     let id = Uuid::new_v4();
-    let result = state.get_or_create_thumbnail(id).await;
+    let result = state::get_or_create_thumbnail(&state, id).await;
 
     assert!(result.is_err());
 }
@@ -84,7 +84,7 @@ async fn test_get_or_create_thumbnail_returns_existing_thumbnail() {
         .await
         .unwrap();
 
-    let result = state.get_or_create_thumbnail(id).await;
+    let result = state::get_or_create_thumbnail(&state, id).await;
 
     assert!(result.is_ok());
     assert_eq!(result.unwrap(), thumb_path);
@@ -98,7 +98,9 @@ async fn test_save_video_creates_file() {
     let id = Uuid::new_v4();
     let data = b"test video content";
 
-    let path = state.save_video(id, "test.mp4", data).await.unwrap();
+    let path = state::save_video(&state, id, "test.mp4", data)
+        .await
+        .unwrap();
 
     assert!(PathBuf::from(&path).exists());
     let content = std::fs::read(&path).unwrap();
@@ -111,7 +113,9 @@ async fn test_save_video_preserves_extension() {
     let state = AppState::new(temp.path().to_path_buf(), AppConfig::default());
 
     let id = Uuid::new_v4();
-    let path = state.save_video(id, "video.mov", b"data").await.unwrap();
+    let path = state::save_video(&state, id, "video.mov", b"data")
+        .await
+        .unwrap();
 
-    assert!(path.ends_with(".mov"));
+    assert_eq!(path.extension().and_then(|e| e.to_str()), Some("mov"));
 }

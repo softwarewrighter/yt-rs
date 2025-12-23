@@ -505,9 +505,9 @@ impl Node {
         Self {
             id: Uuid::new_v4(),
             position,
-            size: Size::new(200.0, 140.0),
+            size: Size::new(200.0, 160.0),
             data: NodeData::Viewer(ViewerData::default()),
-            inputs: vec![Connector::input("video_in", 70.0)],
+            inputs: vec![Connector::input("video_in", 80.0)],
             outputs: Vec::new(),
             z_index: 0,
         }

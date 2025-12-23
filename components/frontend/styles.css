@@ -339,3 +339,34 @@ body {
 .file-button:hover {
     background: #6ab4ff;
 }
+
+/* Toolbox divider and workspace buttons */
+.toolbox-divider {
+    height: 1px;
+    background: #2a2a3e;
+    margin: 12px 0;
+}
+
+.workspace-buttons {
+    display: flex;
+    gap: 8px;
+    padding: 4px;
+}
+
+.action-button {
+    flex: 1;
+    padding: 10px;
+    background: #2a2a3e;
+    border: 1px solid #3a3a4e;
+    border-radius: 6px;
+    color: #aaa;
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.15s;
+}
+
+.action-button:hover {
+    background: #3a3a4e;
+    color: #fff;
+    border-color: #4a9eff;
+}

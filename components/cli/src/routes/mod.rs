@@ -4,6 +4,7 @@ mod health;
 mod projects;
 mod shutdown;
 mod videos;
+mod workspace;
 
 use axum::Router;
 use axum::extract::DefaultBodyLimit;
@@ -29,5 +30,6 @@ fn api_routes(shutdown: ShutdownState) -> Router<AppState> {
         .merge(health::routes())
         .merge(projects::routes())
         .merge(videos::routes())
+        .merge(workspace::routes())
         .merge(shutdown::routes(shutdown))
 }

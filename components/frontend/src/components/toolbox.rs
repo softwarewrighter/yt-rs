@@ -1,12 +1,21 @@
 //! Toolbox component with draggable node types.
 
+use gloo_net::http::Request;
+use serde::Deserialize;
+use wasm_bindgen_futures::spawn_local;
 use yew::prelude::*;
 
 use crate::state::{AppAction, AppStateContext};
 use yt_rs_shared::{
-    GenerateDialogData, NodeData, Position, SelectorData, StillPreviewData, StillSamplerData,
-    TextViewData, VideoInputData, ViewerData,
+    GenerateDialogData, NodeData, Position, Project, SelectorData, StillPreviewData,
+    StillSamplerData, TextViewData, VideoInputData, ViewerData,
 };
+
+/// Response wrapper for project API.
+#[derive(Debug, Deserialize)]
+struct ProjectResponse {
+    project: Project,
+}
 
 /// The toolbox sidebar component.
 #[function_component(Toolbox)]
@@ -45,8 +54,55 @@ fn render_palette(state: &AppStateContext) -> Html {
             {render_node_item("P", "Viewer", "Play video", create_viewer_callback(state))}
             {render_node_item("G", "Generate Dialog", "AI dialog generation", create_generate_callback(state))}
             {render_node_item("X", "Text View", "Display text output", create_text_view_callback(state))}
+            <div class="toolbox-divider" />
+            {render_workspace_buttons(state)}
         </div>
     }
+}
+
+fn render_workspace_buttons(state: &AppStateContext) -> Html {
+    html! {
+        <div class="workspace-buttons">
+            {render_action_button("Save", "Save workspace", create_save_callback(state))}
+            {render_action_button("Restore", "Load workspace", create_restore_callback(state))}
+        </div>
+    }
+}
+
+fn render_action_button(label: &str, title: &str, on_click: Callback<MouseEvent>) -> Html {
+    let title = title.to_string();
+    html! {
+        <button class="action-button" {title} onclick={on_click}>{label}</button>
+    }
+}
+
+fn create_save_callback(state: &AppStateContext) -> Callback<MouseEvent> {
+    let state = state.clone();
+    Callback::from(move |_| {
+        let project = state.to_project("default");
+        spawn_local(async move {
+            let _ = Request::post("/api/v1/workspace/save")
+                .json(&project)
+                .expect("serialize project")
+                .send()
+                .await;
+        });
+    })
+}
+
+fn create_restore_callback(state: &AppStateContext) -> Callback<MouseEvent> {
+    let state = state.clone();
+    Callback::from(move |_| {
+        let state = state.clone();
+        spawn_local(async move {
+            if let Ok(resp) = Request::get("/api/v1/workspace/restore").send().await
+                && resp.ok()
+                && let Ok(data) = resp.json::<ProjectResponse>().await
+            {
+                state.dispatch(AppAction::LoadProject(data.project));
+            }
+        });
+    })
 }
 
 fn render_node_item(icon: &str, name: &str, desc: &str, on_click: Callback<MouseEvent>) -> Html {

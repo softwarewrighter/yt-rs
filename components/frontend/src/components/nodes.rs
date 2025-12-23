@@ -90,12 +90,19 @@ fn render_video_info(v: &VideoInputData) -> Html {
 
 fn render_viewer_info(v: Option<VideoInputData>) -> Html {
     v.map(|v| {
-        two_line(
-            v.file_name.unwrap_or("Unknown".into()),
-            v.duration_seconds
-                .map(|d| format!("{:.1}s", d))
-                .unwrap_or_default(),
-        )
+        let name = v.file_name.unwrap_or("Unknown".into());
+        let dur = v.duration_seconds.map(|d| format!("{:.1}s", d)).unwrap_or_default();
+        if let Some(id) = v.file_id {
+            html! {
+                <>
+                    {txt(10.0, 44.0, &name, "#aaa", 10)}
+                    {if !dur.is_empty() { txt(10.0, 58.0, dur, "#888", 10) } else { html! {} }}
+                    <image x="10" y="65" width="180" height="90" href={format!("/api/v1/videos/{id}/thumbnail")} style="pointer-events: none;" />
+                </>
+            }
+        } else {
+            two_line(name, dur)
+        }
     })
     .unwrap_or_else(|| txt(10.0, 44.0, "No video connected", "#666", 10))
 }

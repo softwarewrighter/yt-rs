@@ -120,6 +120,28 @@ pub async fn get_or_create_still(
     Ok(still_path)
 }
 
+/// Saves the default workspace project to disk.
+pub async fn save_workspace(state: &AppState, project: &Project) -> std::io::Result<()> {
+    let dir = state.data_dir().join("projects");
+    tokio::fs::create_dir_all(&dir).await?;
+    let name = &state.config().workspace.default_project_name;
+    let path = dir.join(format!("{name}.json"));
+    let json = serde_json::to_string_pretty(project).map_err(std::io::Error::other)?;
+    tokio::fs::write(&path, json).await
+}
+
+/// Loads the default workspace project from disk.
+pub async fn load_workspace(state: &AppState) -> std::io::Result<Option<Project>> {
+    let name = &state.config().workspace.default_project_name;
+    let path = state.data_dir().join(format!("projects/{name}.json"));
+    if !tokio::fs::try_exists(&path).await.unwrap_or(false) {
+        return Ok(None);
+    }
+    let json = tokio::fs::read_to_string(&path).await?;
+    let project: Project = serde_json::from_str(&json).map_err(std::io::Error::other)?;
+    Ok(Some(project))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

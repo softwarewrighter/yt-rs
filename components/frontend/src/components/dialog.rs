@@ -385,14 +385,13 @@ fn find_video_upstream(node: &Node, state: &AppStateContext) -> Option<(Uuid, St
             .connections
             .values()
             .find(|c| c.to_node == node.id && c.to_connector == input.id)
+            && let Some(up) = state.nodes.get(&conn.from_node)
         {
-            if let Some(up) = state.nodes.get(&conn.from_node) {
-                if let NodeData::VideoInput(d) = &up.data {
-                    return Some((d.file_id?, d.file_name.clone().unwrap_or("?".into())));
-                }
-                if let Some(r) = find_video_upstream(up, state) {
-                    return Some(r);
-                }
+            if let NodeData::VideoInput(d) = &up.data {
+                return Some((d.file_id?, d.file_name.clone().unwrap_or("?".into())));
+            }
+            if let Some(r) = find_video_upstream(up, state) {
+                return Some(r);
             }
         }
     }

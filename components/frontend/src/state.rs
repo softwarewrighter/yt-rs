@@ -3,9 +3,10 @@
 use std::collections::HashMap;
 use std::rc::Rc;
 
+use chrono::Utc;
 use uuid::Uuid;
 use yew::prelude::*;
-use yt_rs_shared::{CanvasState, Connection, Node, NodeData, PendingConnection, Position};
+use yt_rs_shared::{CanvasState, Connection, Node, NodeData, PendingConnection, Position, Project};
 
 /// Drag operation state.
 #[derive(Debug, Clone, PartialEq)]
@@ -48,6 +49,7 @@ pub enum AppAction {
     CompleteConnection(Uuid, Uuid),
     CancelConnection,
     DeleteConnection(Uuid),
+    LoadProject(Project),
 }
 
 impl Reducible for AppState {
@@ -110,6 +112,30 @@ impl AppState {
             DeleteConnection(id) => {
                 self.connections.remove(&id);
             }
+            LoadProject(project) => self.load_project(project),
+        }
+    }
+
+    fn load_project(&mut self, project: Project) {
+        self.canvas = project.canvas_state;
+        self.nodes = project.nodes.into_iter().map(|n| (n.id, n)).collect();
+        self.connections = project.connections.into_iter().map(|c| (c.id, c)).collect();
+        self.selected_node = None;
+        self.pending_connection = None;
+        self.dragging = None;
+        self.open_dialog = None;
+    }
+
+    /// Exports the current state as a Project for saving.
+    pub fn to_project(&self, name: &str) -> Project {
+        Project {
+            id: Uuid::new_v4(),
+            name: name.to_string(),
+            canvas_state: self.canvas.clone(),
+            nodes: self.nodes.values().cloned().collect(),
+            connections: self.connections.values().cloned().collect(),
+            created_at: Utc::now(),
+            updated_at: Utc::now(),
         }
     }
 
