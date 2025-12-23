@@ -339,9 +339,15 @@ impl Default for StillSamplerData {
 
 impl StillSamplerData {
     /// Generates stills based on video duration and interval.
+    /// Always includes at least one still at timestamp 0.
     pub fn generate_stills(&mut self, duration_seconds: f64) {
         self.extracted_stills.clear();
-        let mut timestamp = 0.0;
+
+        // Always include at least one still at the start
+        self.extracted_stills.push(Still::new(0.0));
+
+        // Add additional stills at interval offsets
+        let mut timestamp = self.interval_seconds as f64;
         while timestamp < duration_seconds {
             self.extracted_stills.push(Still::new(timestamp));
             timestamp += self.interval_seconds as f64;

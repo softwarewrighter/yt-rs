@@ -10,7 +10,8 @@ use yew::prelude::*;
 
 use crate::state::{AppAction, AppStateContext};
 use yt_rs_shared::{
-    Node, NodeData, SelectorData, StillPreviewData, UploadStatus, VideoInputData, ViewerData,
+    Node, NodeData, SelectorData, StillPreviewData, StillSamplerData, UploadStatus, VideoInputData,
+    ViewerData,
 };
 
 /// Video metadata response from backend.
@@ -187,31 +188,55 @@ async fn upload_video(file: web_sys::File) -> Result<VideoMeta, String> {
 
 fn render_still_sampler_dialog(
     node: &Node,
-    data: &yt_rs_shared::StillSamplerData,
+    data: &StillSamplerData,
     state: &AppStateContext,
 ) -> Html {
+    let node_id = node.id;
     let interval = data.interval_seconds;
+    let current_stills = data.extracted_stills.len();
     let connected_video = find_connected_video(node, state);
-    let still_count = connected_video.as_ref().and_then(|v| {
-        v.duration_seconds
-            .map(|d| (d / interval as f64).floor() as u32)
+    let video_duration = connected_video.as_ref().and_then(|v| v.duration_seconds);
+
+    let state_update = state.clone();
+    let on_interval_change = Callback::from(move |e: Event| {
+        let input: HtmlInputElement = e.target().unwrap().dyn_into().unwrap();
+        if let Ok(new_interval) = input.value().parse::<u32>() {
+            let clamped = new_interval.clamp(1, 300);
+            let mut new_data = StillSamplerData {
+                interval_seconds: clamped,
+                ..Default::default()
+            };
+            // Regenerate stills if we have a connected video
+            if let Some(duration) = video_duration {
+                new_data.generate_stills(duration);
+            }
+            state_update.dispatch(AppAction::UpdateNodeData(
+                node_id,
+                NodeData::StillSampler(new_data),
+            ));
+        }
     });
 
     html! {
         <div class="dialog-body">
             <h3>{"Still Sampler"}</h3>
             <div class="dialog-row">
-                <label>{"Sample Interval:"}</label>
-                <span>{format!("{} seconds", interval)}</span>
+                <label>{"Sample Interval (seconds):"}</label>
+                <input
+                    type="number"
+                    min="1"
+                    max="300"
+                    value={interval.to_string()}
+                    onchange={on_interval_change}
+                />
             </div>
-            if let Some(count) = still_count {
-                <div class="dialog-row">
-                    <label>{"Stills to extract:"}</label>
-                    <span>{count}</span>
-                </div>
-            } else {
+            <div class="dialog-row">
+                <label>{"Stills extracted:"}</label>
+                <span>{current_stills}</span>
+            </div>
+            if video_duration.is_none() {
                 <div class="dialog-row hint">
-                    {"Connect a video input to see still count"}
+                    {"Connect a video input to extract stills"}
                 </div>
             }
         </div>
